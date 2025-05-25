@@ -1,3 +1,6 @@
+<!DOCTYPE html>
+<html lang="en">
+
 <?php
 require_once 'QLYX/qlyx.php';
 require_once 'db-connect.php';
@@ -5,9 +8,6 @@ require_once 'db-connect.php';
 $qlyx = new QLYX($pdo);
 $qlyx->track();
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -19,7 +19,7 @@ $qlyx->track();
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/php.min.js"></script>
     <script>
-    hljs.highlightAll();
+        hljs.highlightAll();
     </script>
 </head>
 
