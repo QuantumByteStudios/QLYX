@@ -32,7 +32,8 @@ class QLYX
 
 		$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
 
-		if ($this->isBot($userAgent)) {
+		$isBot = $this->isBot($userAgent);
+		if ($isBot) {
 			$this->log("Bot detected: $userAgent");
 			return;
 		}
@@ -43,7 +44,8 @@ class QLYX
 		$deviceType = $this->getDeviceType($userAgent);
 		$os = $this->getUserOs($userAgent);
 
-		$ipToStore = $this->anonymizeIp ? $this->anonymize($ip) : $ip;
+		// $ipToStore = $this->anonymizeIp ? $this->anonymize($ip) : $ip;
+		$ipToStore = $ip; // Always store full IP, never anonymize
 
 		$data = [
 			'user_ip_address' => $ipToStore,
@@ -60,7 +62,7 @@ class QLYX
 			'page_url' => $_SERVER['REQUEST_URI'] ?? 'Unknown',
 			'timezone' => $geo['timezone'] ?? 'Unknown',
 			'network_connection' => 'Unknown',
-			'visitor_type' => $isBot ? 'bot' : 'human'
+			'visitor_type' => $isBot ? 'BOT' : 'HUMAN'
 		];
 
 		$this->insertData($data);
@@ -128,7 +130,49 @@ class QLYX
 
 	private function isBot(string $agent): bool
 	{
-		return preg_match('/bot|crawl|spider|slurp|facebook|pingdom|ia_archiver/i', $agent);
+		if (empty($agent)) {
+			return true; // No user-agent at all is highly suspicious
+		}
+
+		return (bool) preg_match('/
+			bot
+			|crawl
+			|slurp
+			|spider
+			|facebookexternalhit
+			|facebot
+			|pingdom
+			|ia_archiver
+			|twitterbot
+			|linkedinbot
+			|embedly
+			|quora\ link\ preview
+			|showyoubot
+			|outbrain
+			|pinterest
+			|bitlybot
+			|nuzzel
+			|vkShare
+			|W3C_Validator
+			|redditbot
+			|Applebot
+			|WhatsApp
+			|flipboard
+			|tumblr
+			|TelegramBot
+			|Slackbot
+			|discordbot
+			|Googlebot
+			|Bingbot
+			|Yahoo! Slurp
+			|DuckDuckBot
+			|Baiduspider
+			|YandexBot
+			|Sogou
+			|Exabot
+			|facebot
+			|ia_archiver
+		/ix', $agent);
 	}
 
 	private function getGeolocation(string $ip): array
@@ -138,10 +182,14 @@ class QLYX
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+		curl_setopt($ch, CURLOPT_HEADER, true);
+		curl_setopt($ch, CURLOPT_NOBODY, false);
+
 		$response = curl_exec($ch);
+		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
 
-		if ($response) {
+		if ($httpCode === 200 && $response) {
 			$data = json_decode($response, true);
 			if (json_last_error() === JSON_ERROR_NONE) return $data;
 		}
@@ -159,7 +207,7 @@ class QLYX
 		} elseif (preg_match('/Chrome\/([0-9.]+)/', $agent, $m)) {
 			$browser = 'Chrome';
 			$version = $m[1];
-		} elseif (preg_match('/Safari\/([0-9.]+)/', $agent, $m)) {
+		} elseif (preg_match('/Safari\/([0-9.]+)/', $agent, $m) && !preg_match('/Chrome/', $agent)) {
 			$browser = 'Safari';
 			$version = $m[1];
 		} elseif (preg_match('/Trident\/([0-9.]+)/', $agent, $m)) {
@@ -188,9 +236,13 @@ class QLYX
 
 	private function anonymize(string $ip): string
 	{
-		// IPv4 mask example: 192.168.1.XXX
-		return preg_replace('/(\d+\.\d+\.\d+)\.\d+/', '$1.0', $ip);
+		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+			// Truncate IPv6 to /64
+			return preg_replace('/(:[a-fA-F0-9]{0,4}){4}$/', '::', $ip);
+		}
+		return preg_replace('/(\d+\.\d+\.\d+)\.\d+/', '$1.0', $ip); // IPv4
 	}
+
 
 	private function log(string $msg): void
 	{
