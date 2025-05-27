@@ -37,7 +37,9 @@ function isSelected($value, $range)
     <div class="container py-4">
         <div class="row">
             <div class="col-6 text-start">
-                <h1 class="m-0">QLYX Analytics</h1>
+                <a class="text-dark text-decoration-none" href=".">
+                    <h1 class="m-0">QLYX Analytics</h1>
+                </a>
             </div>
             <div class="col-6 text-end">
                 <form method="get" class="mb-4">
