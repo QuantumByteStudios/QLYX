@@ -24,45 +24,39 @@ class QLYX
 	public function track(): void
 	{
 		$ip = $this->getClientIp();
-
 		if (!$ip || in_array($ip, $this->ignoredIps)) {
 			$this->log("Ignored IP: $ip");
 			return;
 		}
 
 		$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
-
-		$isBot = $this->isBot($userAgent);
-		if ($isBot) {
+		if ($this->isBot($userAgent)) {
 			$this->log("Bot detected: $userAgent");
 			return;
 		}
 
 		$geo = $this->getGeolocation($ip);
-		$isBot = $this->isBot($userAgent);
 		$browser = $this->getBrowserInfo($userAgent);
 		$deviceType = $this->getDeviceType($userAgent);
 		$os = $this->getUserOs($userAgent);
 
-		// $ipToStore = $this->anonymizeIp ? $this->anonymize($ip) : $ip;
-		$ipToStore = $ip; // Always store full IP, never anonymize
+		$ipToStore = $ip;
 
 		$data = [
-			'user_ip_address' => $ipToStore,
-			'user_browser_agent' => $userAgent,
-			'user_device_type' => $deviceType,
-			'user_os' => $os,
-			'user_city' => $geo['city'] ?? 'Unknown',
-			'user_region' => $geo['region'] ?? 'Unknown',
-			'user_country' => $geo['country'] ?? 'Unknown',
-			'browser_name' => $browser['name'],
-			'browser_version' => $browser['version'],
-			'browser_language' => $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'Unknown',
-			'referring_url' => $_SERVER['HTTP_REFERER'] ?? 'Direct',
-			'page_url' => $_SERVER['REQUEST_URI'] ?? 'Unknown',
-			'timezone' => $geo['timezone'] ?? 'Unknown',
-			'network_connection' => 'Unknown',
-			'visitor_type' => $isBot ? 'BOT' : 'HUMAN'
+			'user_ip_address'     => $ipToStore,
+			'user_browser_agent'  => $userAgent,
+			'user_device_type'    => $deviceType,
+			'user_os'             => $os,
+			'user_city'           => $geo['city'] ?? 'Unknown',
+			'user_region'         => $geo['region'] ?? 'Unknown',
+			'user_country'        => $geo['country'] ?? 'Unknown',
+			'browser_name'        => $browser['name'],
+			'browser_version'     => $browser['version'],
+			'browser_language'    => $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'Unknown',
+			'referring_url'       => $_SERVER['HTTP_REFERER'] ?? 'Direct',
+			'page_url'            => $_SERVER['REQUEST_URI'] ?? 'Unknown',
+			'timezone'            => $geo['timezone'] ?? 'Unknown',
+			'visitor_type'        => 'HUMAN'
 		];
 
 		$this->insertData($data);
@@ -86,7 +80,6 @@ class QLYX
 				referring_url TEXT,
 				page_url TEXT,
 				timezone VARCHAR(100),
-				network_connection VARCHAR(50),
 				visitor_type VARCHAR(20),
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)";
@@ -99,11 +92,11 @@ class QLYX
 			INSERT INTO qlyx_analytics (
 				user_ip_address, user_browser_agent, user_device_type, user_os, user_city, 
 				user_region, user_country, browser_name, browser_version, browser_language, 
-				referring_url, page_url, timezone, network_connection, visitor_type
+				referring_url, page_url, timezone, visitor_type
 			) VALUES (
 				:user_ip_address, :user_browser_agent, :user_device_type, :user_os, :user_city, 
 				:user_region, :user_country, :browser_name, :browser_version, :browser_language, 
-				:referring_url, :page_url, :timezone, :network_connection, :visitor_type
+				:referring_url, :page_url, :timezone, :visitor_type
 			)";
 		$stmt = $this->pdo->prepare($sql);
 		$stmt->execute($data);
@@ -115,63 +108,17 @@ class QLYX
 		return filter_var(explode(',', $ip)[0], FILTER_VALIDATE_IP);
 	}
 
-	public function getDailyTrends()
-	{
-		$stmt = $this->pdo->prepare("
-			SELECT DATE(created_at) as date, COUNT(*) as visits
-			FROM qlyx_analytics
-			WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-			GROUP BY DATE(created_at)
-			ORDER BY DATE(created_at) ASC
-		");
-		$stmt->execute();
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
-	}
-
 	private function isBot(string $agent): bool
 	{
-		if (empty($agent)) {
-			return true; // No user-agent at all is highly suspicious
-		}
+		if (empty($agent)) return true;
 
 		return (bool) preg_match('/
-			bot
-			|crawl
-			|slurp
-			|spider
-			|facebookexternalhit
-			|facebot
-			|pingdom
-			|ia_archiver
-			|twitterbot
-			|linkedinbot
-			|embedly
-			|quora\ link\ preview
-			|showyoubot
-			|outbrain
-			|pinterest
-			|bitlybot
-			|nuzzel
-			|vkShare
-			|W3C_Validator
-			|redditbot
-			|Applebot
-			|WhatsApp
-			|flipboard
-			|tumblr
-			|TelegramBot
-			|Slackbot
-			|discordbot
-			|Googlebot
-			|Bingbot
-			|Yahoo! Slurp
-			|DuckDuckBot
-			|Baiduspider
-			|YandexBot
-			|Sogou
-			|Exabot
-			|facebot
-			|ia_archiver
+			bot|crawl|slurp|spider|facebookexternalhit|facebot|pingdom|ia_archiver|
+			twitterbot|linkedinbot|embedly|quora\ link\ preview|showyoubot|outbrain|
+			pinterest|bitlybot|nuzzel|vkShare|W3C_Validator|redditbot|Applebot|
+			WhatsApp|flipboard|tumblr|TelegramBot|Slackbot|discordbot|
+			Googlebot|Bingbot|Yahoo! Slurp|DuckDuckBot|Baiduspider|YandexBot|
+			Sogou|Exabot
 		/ix', $agent);
 	}
 
@@ -182,9 +129,6 @@ class QLYX
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_URL, $url);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-		curl_setopt($ch, CURLOPT_HEADER, true);
-		curl_setopt($ch, CURLOPT_NOBODY, false);
-
 		$response = curl_exec($ch);
 		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
@@ -193,7 +137,6 @@ class QLYX
 			$data = json_decode($response, true);
 			if (json_last_error() === JSON_ERROR_NONE) return $data;
 		}
-
 		return [];
 	}
 
@@ -201,6 +144,7 @@ class QLYX
 	{
 		$browser = 'Unknown';
 		$version = 'Unknown';
+
 		if (preg_match('/Firefox\/([0-9.]+)/', $agent, $m)) {
 			$browser = 'Firefox';
 			$version = $m[1];
@@ -214,6 +158,7 @@ class QLYX
 			$browser = 'Internet Explorer';
 			$version = $m[1];
 		}
+
 		return ['name' => $browser, 'version' => $version];
 	}
 
@@ -237,16 +182,27 @@ class QLYX
 	private function anonymize(string $ip): string
 	{
 		if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-			// Truncate IPv6 to /64
 			return preg_replace('/(:[a-fA-F0-9]{0,4}){4}$/', '::', $ip);
 		}
-		return preg_replace('/(\d+\.\d+\.\d+)\.\d+/', '$1.0', $ip); // IPv4
+		return preg_replace('/(\d+\.\d+\.\d+)\.\d+/', '$1.0', $ip);
 	}
-
 
 	private function log(string $msg): void
 	{
 		file_put_contents($this->logFile, "[" . date('Y-m-d H:i:s') . "] $msg\n", FILE_APPEND);
+	}
+
+	public function getDailyTrends(): array
+	{
+		$stmt = $this->pdo->prepare("
+			SELECT DATE(created_at) as date, COUNT(*) as visits
+			FROM qlyx_analytics
+			WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+			GROUP BY DATE(created_at)
+			ORDER BY DATE(created_at) ASC
+		");
+		$stmt->execute();
+		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	public function getStats(string $range = '24h'): array
@@ -318,7 +274,6 @@ class QLYX
 				COALESCE(referring_url, 'N/A') as referring_url,
 				COALESCE(page_url, 'N/A') as page_url,
 				COALESCE(timezone, 'N/A') as timezone,
-				COALESCE(network_connection, 'N/A') as network_connection,
 				COALESCE(visitor_type, 'N/A') as visitor_type,
 				created_at 
 			FROM qlyx_analytics 

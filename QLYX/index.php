@@ -50,11 +50,10 @@ function isSelected($value, $range)
 
         <div class="row my-4">
             <div class="col-6">
-                <div class="card border-0 p-5 text-center">
-                    <div class="card-body">
-                        <h6 class="text-uppercase">Total Visitors</h6>
-                        <h1 class="fw-bold"><?= $stats['total'] ?></h1>
-                    </div>
+                <div
+                    class="card bg-transparent d-flex align-items-center justify-content-center  h-100 border-0 p-5 text-center">
+                    <h6 class="text-uppercase">Total Visitors</h6>
+                    <h1 style="font-size: 60px;" class="fw-bold m-0"><?= $stats['total'] ?></h1>
                 </div>
             </div>
             <div class="col-6">
