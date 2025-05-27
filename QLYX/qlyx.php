@@ -39,11 +39,13 @@ class QLYX
 		$browser = $this->getBrowserInfo($userAgent);
 		$deviceType = $this->getDeviceType($userAgent);
 		$os = $this->getUserOs($userAgent);
+		$user_profile = $this->generateUserProfile($ip, $userAgent, $deviceType, $os, $browser);
 
 		$ipToStore = $ip;
 
 		$data = [
 			'user_ip_address'     => $ipToStore,
+			'user_profile'        => $user_profile,
 			'user_browser_agent'  => $userAgent,
 			'user_device_type'    => $deviceType,
 			'user_os'             => $os,
@@ -62,12 +64,24 @@ class QLYX
 		$this->insertData($data);
 	}
 
+	private function generateUserProfile($ip, $userAgent, $deviceType, $os, $browser): string
+	{
+		// generate a hash based on $ip, $userAgent, $deviceType, $os, $browser
+		$user_profile = substr(hash('sha256', $ip . $userAgent . $deviceType . $os . $browser['name'] . $browser['version']), 0, 50);
+		// Set this profile to a cookie or session if needed
+		if (!isset($_COOKIE['qlyx_user_profile'])) {
+			setcookie('qlyx_user_profile', $user_profile, time() + (86400 * 30), "/"); // 30 days
+		}
+		return $user_profile;
+	}
+
 	private function createTable(): void
 	{
 		$query = "
 			CREATE TABLE IF NOT EXISTS qlyx_analytics (
 				id INT AUTO_INCREMENT PRIMARY KEY,
 				user_ip_address VARCHAR(45),
+				user_profile VARCHAR(50),
 				user_browser_agent TEXT,
 				user_device_type VARCHAR(50),
 				user_os VARCHAR(100),
@@ -90,11 +104,11 @@ class QLYX
 	{
 		$sql = "
 			INSERT INTO qlyx_analytics (
-				user_ip_address, user_browser_agent, user_device_type, user_os, user_city, 
+				user_ip_address, user_profile, user_browser_agent, user_device_type, user_os, user_city, 
 				user_region, user_country, browser_name, browser_version, browser_language, 
 				referring_url, page_url, timezone, visitor_type
 			) VALUES (
-				:user_ip_address, :user_browser_agent, :user_device_type, :user_os, :user_city, 
+				:user_ip_address, :user_profile, :user_browser_agent, :user_device_type, :user_os, :user_city, 
 				:user_region, :user_country, :browser_name, :browser_version, :browser_language, 
 				:referring_url, :page_url, :timezone, :visitor_type
 			)";
@@ -264,6 +278,7 @@ class QLYX
 		$data['recent'] = $this->pdo->query("
 			SELECT 
 				COALESCE(user_ip_address, 'N/A') as user_ip_address, 
+				COALESCE(user_profile, 'N/A') as user_profile,
 				COALESCE(user_device_type, 'N/A') as user_device_type, 
 				COALESCE(browser_name, 'N/A') as browser_name, 
 				COALESCE(user_country, 'N/A') as user_country, 

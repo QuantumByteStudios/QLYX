@@ -23,6 +23,13 @@ function isSelected($value, $range)
     <title>QLYX Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        td,
+        th {
+            font-size: 12px;
+            text-wrap: wrap;
+        }
+    </style>
 </head>
 
 <body class="bg-light">
@@ -116,7 +123,7 @@ function isSelected($value, $range)
                     labels: <?= json_encode(array_column($stats['by_device'], 'user_device_type')) ?>,
                     datasets: [{
                         data: <?= json_encode(array_column($stats['by_device'], 'count')) ?>,
-                        backgroundColor: ['#36a2eb', '#4bc0c0', '#ff6384']
+                        backgroundColor: ['#ff6384', '#ff9f40', '#4bc0c0', '#9966ff', '#36a2eb']
                     }]
                 }
             });
@@ -129,7 +136,7 @@ function isSelected($value, $range)
                     datasets: [{
                         label: 'Browsers',
                         data: <?= json_encode(array_column($stats['by_browser'], 'count')) ?>,
-                        backgroundColor: '#36a2eb'
+                        backgroundColor: ['#ff6384', '#ff9f40', '#4bc0c0', '#9966ff', '#36a2eb']
                     }]
                 }
             });
@@ -150,11 +157,12 @@ function isSelected($value, $range)
 
     <div class="container-fluid">
         <h6 class="text-uppercase">Recent Visitors</h6>
-        <div class="table-responsive">
+        <div class="table-responsive" style="overflow-x:auto;">
             <table class="table table-striped table-bordered table-hover align-middle">
                 <thead class="table-dark">
                     <tr>
                         <th>IP</th>
+                        <th>User</th>
                         <th>Device</th>
                         <th>Browser</th>
                         <th>Country</th>
@@ -163,9 +171,8 @@ function isSelected($value, $range)
                         <th>OS</th>
                         <th>Lang</th>
                         <th>Referrer</th>
-                        <th>Page URL</th>
+                        <th>URL</th>
                         <th>Timezone</th>
-                        <th>Network</th>
                         <th>Visitor</th>
                         <th>Time</th>
                     </tr>
@@ -180,6 +187,7 @@ function isSelected($value, $range)
                     foreach ($stats['recent'] as $row): ?>
                         <tr>
                             <td><?= displayValue($row['user_ip_address']) ?></td>
+                            <td><?= displayValue($row['user_profile']) ?></td>
                             <td><?= displayValue($row['user_device_type']) ?></td>
                             <td><?= displayValue($row['browser_name']) ?></td>
                             <td><?= displayValue($row['user_country']) ?></td>
@@ -190,7 +198,6 @@ function isSelected($value, $range)
                             <td><?= displayValue($row['referring_url']) ?></td>
                             <td><?= displayValue($row['page_url']) ?></td>
                             <td><?= displayValue($row['timezone']) ?></td>
-                            <td><?= displayValue($row['network_connection']) ?></td>
                             <td><?= displayValue($row['visitor_type']) ?></td>
                             <td><?= $row['created_at'] ? date('jS M Y', strtotime($row['created_at'])) : "N/A" ?></td>
                         </tr>
