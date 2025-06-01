@@ -40,12 +40,14 @@ class QLYX
 		$deviceType = $this->getDeviceType($userAgent);
 		$os = $this->getUserOs($userAgent);
 		$user_profile = $this->generateUserProfile($ip, $userAgent, $deviceType, $os, $browser);
+		$user_org = $this->getUserOrganization($ip);
 
 		$ipToStore = $ip;
 
 		$data = [
 			'user_ip_address'     => $ipToStore,
 			'user_profile'        => $user_profile,
+			'user_org'            => $user_org,
 			'user_browser_agent'  => $userAgent,
 			'user_device_type'    => $deviceType,
 			'user_os'             => $os,
@@ -82,6 +84,7 @@ class QLYX
 				id INT AUTO_INCREMENT PRIMARY KEY,
 				user_ip_address VARCHAR(45),
 				user_profile VARCHAR(50),
+				user_org VARCHAR(100),
 				user_browser_agent TEXT,
 				user_device_type VARCHAR(50),
 				user_os VARCHAR(100),
@@ -104,11 +107,11 @@ class QLYX
 	{
 		$sql = "
 			INSERT INTO qlyx_analytics (
-				user_ip_address, user_profile, user_browser_agent, user_device_type, user_os, user_city, 
+				user_ip_address, user_profile, user_org, user_browser_agent, user_device_type, user_os, user_city, 
 				user_region, user_country, browser_name, browser_version, browser_language, 
 				referring_url, page_url, timezone, visitor_type
 			) VALUES (
-				:user_ip_address, :user_profile, :user_browser_agent, :user_device_type, :user_os, :user_city, 
+				:user_ip_address, :user_profile, :user_org, :user_browser_agent, :user_device_type, :user_os, :user_city, 
 				:user_region, :user_country, :browser_name, :browser_version, :browser_language, 
 				:referring_url, :page_url, :timezone, :visitor_type
 			)";
@@ -191,6 +194,22 @@ class QLYX
 		if (preg_match('/android/i', $agent)) return 'Android';
 		if (preg_match('/iphone/i', $agent)) return 'iPhone';
 		return 'Unknown OS';
+	}
+
+	private function getUserOrganization(string $ip): string
+	{
+		$url = "https://ipinfo.io/{$ip}/org";
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+		curl_setopt($ch, CURLOPT_USERAGENT, $_SERVER['HTTP_USER_AGENT'] ?? 'QLYXBot/1.0');
+		$response = curl_exec($ch);
+		curl_close($ch);
+		if ($response && !empty($response)) {
+			return trim($response);
+		}
+		return 'Unknown';
 	}
 
 	private function anonymize(string $ip): string
@@ -279,6 +298,7 @@ class QLYX
 			SELECT 
 				COALESCE(user_ip_address, 'N/A') as user_ip_address, 
 				COALESCE(user_profile, 'N/A') as user_profile,
+				COALESCE(user_org, 'N/A') as user_org,
 				COALESCE(user_device_type, 'N/A') as user_device_type, 
 				COALESCE(browser_name, 'N/A') as browser_name, 
 				COALESCE(user_country, 'N/A') as user_country, 

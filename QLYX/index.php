@@ -165,6 +165,7 @@ function isSelected($value, $range)
                     <tr>
                         <th>IP</th>
                         <th>User</th>
+                        <th>Org</th>
                         <th>Device</th>
                         <th>Browser</th>
                         <th>Country</th>
@@ -190,6 +191,7 @@ function isSelected($value, $range)
                         <tr>
                             <td><?= displayValue($row['user_ip_address']) ?></td>
                             <td><?= displayValue($row['user_profile']) ?></td>
+                            <td><?= displayValue($row['user_org']) ?></td>
                             <td><?= displayValue($row['user_device_type']) ?></td>
                             <td><?= displayValue($row['browser_name']) ?></td>
                             <td><?= displayValue($row['user_country']) ?></td>
