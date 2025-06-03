@@ -30,10 +30,6 @@ class QLYX
 		}
 
 		$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
-		if ($this->isBot($userAgent)) {
-			$this->log("Bot detected: $userAgent");
-			return;
-		}
 
 		$geo = $this->getGeolocation($ip);
 		$browser = $this->getBrowserInfo($userAgent);
@@ -41,7 +37,7 @@ class QLYX
 		$os = $this->getUserOs($userAgent);
 		$user_profile = $this->generateUserProfile($ip, $userAgent, $deviceType, $os, $browser);
 		$user_org = $this->getUserOrganization($ip);
-		$visitor_type = $this->isBot($userAgent);
+		$visitor_type = $this->isBot($userAgent, $user_org);
 		if ($visitor_type) {
 			$visitor_type = 'BOT';
 		} else {
@@ -131,90 +127,117 @@ class QLYX
 		return filter_var(explode(',', $ip)[0], FILTER_VALIDATE_IP);
 	}
 
-	private function isBot(string $agent): bool
+	private function isBot(string $agent, string $org = ''): bool
 	{
 		if (empty($agent)) {
 			return true;
 		}
 
-		static $pattern = null;
+		$agent = strtolower($agent);
+		$org = strtolower($org);
 
-		if ($pattern === null) {
-			$bots = [
-				'bot',
-				'crawl',
-				'slurp',
-				'spider',
-				'facebookexternalhit',
-				'facebot',
-				'pingdom',
-				'ia_archiver',
-				'twitterbot',
-				'linkedinbot',
-				'embedly',
-				'quora link preview',
-				'showyoubot',
-				'outbrain',
-				'pinterest',
-				'bitlybot',
-				'nuzzel',
-				'vkShare',
-				'w3c_validator',
-				'redditbot',
-				'applebot',
-				'whatsapp',
-				'flipboard',
-				'tumblr',
-				'telegrambot',
-				'slackbot',
-				'discordbot',
-				'googlebot',
-				'bingbot',
-				'yahoo! slurp',
-				'duckduckbot',
-				'baiduspider',
-				'yandexbot',
-				'sogou',
-				'exabot',
+		$botIdentifiers = [
+			// Search engine bots
+			'googlebot',
+			'bingbot',
+			'slurp',
+			'yandexbot',
+			'duckduckbot',
+			'baiduspider',
+			'sogou',
+			'exabot',
 
-				// Headless / automation tools
-				'headless',
-				'phantomjs',
-				'selenium',
-				'puppeteer',
-				'playwright',
-				'chrome-lighthouse', // <-- THIS is critical!
+			// Social media previews
+			'facebookexternalhit',
+			'facebot',
+			'twitterbot',
+			'linkedinbot',
+			'slackbot',
+			'discordbot',
+			'telegrambot',
 
-				// Monitoring
-				'uptime',
-				'statuscake',
-				'newrelicpinger',
-				'site24x7',
-				'checkly',
+			// Crawlers/spiders
+			'bot',
+			'crawl',
+			'crawler',
+			'spider',
+			'archive.org_bot',
+			'ia_archiver',
+			'redditbot',
+			'showyoubot',
+			'embedly',
 
-				// HTTP clients
-				'python-urllib',
-				'python-requests',
-				'go-http-client',
-				'java/',
-				'okhttp',
+			// Monitoring tools
+			'uptime',
+			'pingdom',
+			'statuscake',
+			'newrelicpinger',
+			'site24x7',
+			'checkly',
 
-				// Hosting
-				'amazonaws.com',
-				'digitalocean',
-				'googlecloud',
-				'linode',
-				'azure',
+			// Headless/automation tools
+			'headless',
+			'phantomjs',
+			'selenium',
+			'puppeteer',
+			'playwright',
+			'chrome-lighthouse',
 
-				// App user-agents
-				'LinkedInApp'
-			];
+			// HTTP clients and libraries
+			'python-requests',
+			'python-urllib',
+			'go-http-client',
+			'java/',
+			'okhttp',
+			'curl',
+			'wget',
 
-			// 🧠 No preg_quote. It's safer to let literal matches flow
-			$pattern = '/' . implode('|', $bots) . '/i';
+			// Mobile preview apps
+			'whatsapp',
+			'flipboard',
+			'tumblr',
+			'nuzzel',
+			'vkshare',
+			'quora link preview',
+
+			// Known suspicious user-agents
+			'mozilla/5.0 (compatible;', // many basic bots use this format
+		];
+
+		$botOrgs = [
+			'amazon',
+			'google',
+			'digitalocean',
+			'linode',
+			'microsoft',
+			'facebook',
+			'cloudflare',
+			'hetzner',
+			'ovh',
+			'hostinger',
+			'vultr',
+			'contabo',
+			'oracle',
+			'gcore',
+			'upcloud',
+			'scaleway',
+		];
+
+		// Match by user agent
+		foreach ($botIdentifiers as $botString) {
+			if (strpos($agent, $botString) !== false) {
+				return true;
+			}
 		}
 
-		return (bool) preg_match($pattern, $agent);
+		// Match by hosting org (if passed)
+		foreach ($botOrgs as $orgName) {
+			if ($org && strpos($org, $orgName) !== false) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function getGeolocation(string $ip): array
