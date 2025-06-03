@@ -190,7 +190,17 @@ function isSelected($value, $range)
                     {
                         return ($value === "Unknown" || $value === null) ? "N/A" : htmlspecialchars($value);
                     }
+                    // Counts
                     $count = 1;
+                    $humanCount = 0;
+                    $botCount = 0;
+                    foreach ($stats['recent'] as $row) {
+                        if ($row['visitor_type'] == "HUMAN") {
+                            $humanCount++;
+                        } else {
+                            $botCount++;
+                        }
+                    }
                     foreach ($stats['recent'] as $row): ?>
                         <tr>
                             <td><?= $count ?></td>
@@ -232,6 +242,8 @@ function isSelected($value, $range)
                     <?php endforeach; ?>
                 </tbody>
             </table>
+            <p class="text-muted">Total: <?= $stats['total'] ?> | Humans: <?= $humanCount ?> | Bots: <?= $botCount ?>
+            </p>
         </div>
     </div>
 
