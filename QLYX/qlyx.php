@@ -387,6 +387,7 @@ class QLYX
             COALESCE(user_ip_address, 'N/A') as user_ip_address, 
             COALESCE(user_profile, 'N/A') as user_profile,
             COALESCE(user_org, 'N/A') as user_org,
+			COALESCE(user_browser_agent, 'N/A') as user_browser_agent,
             COALESCE(user_device_type, 'N/A') as user_device_type, 
             COALESCE(browser_name, 'N/A') as browser_name, 
             COALESCE(user_country, 'N/A') as user_country, 
