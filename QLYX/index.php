@@ -228,11 +228,15 @@ function isSelected($value, $range)
                                 ?>
                             </td>
                             <td>
-                                <?php if ($row['created_at']):
-                                    $date = date('jS M Y', strtotime($row['created_at']));
-                                    $time = date('g:i A', strtotime($row['created_at']));
+                                <?php
+                                if ($row['created_at']):
+                                    // Convert to Indian time (Asia/Kolkata)
+                                    $dt = new DateTime($row['created_at'], new DateTimeZone('UTC'));
+                                    $dt->setTimezone(new DateTimeZone('Asia/Kolkata'));
+                                    $date = $dt->format('jS M Y');
+                                    $time = $dt->format('g:i A');
                                     ?>
-                                    <?= $date ?><br><span class="text-muted"><?= $time ?></span>
+                                    <?= $date ?><br><span class="text-muted"><?= $time ?> IST</span>
                                 <?php else: ?>
                                     N/A
                                 <?php endif; ?>
