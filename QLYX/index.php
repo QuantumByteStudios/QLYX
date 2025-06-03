@@ -22,6 +22,7 @@ function isSelected($value, $range)
     <meta charset="UTF-8">
     <title>QLYX Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         td,
@@ -202,8 +203,25 @@ function isSelected($value, $range)
                             <td><?= displayValue($row['referring_url']) ?></td>
                             <td><?= displayValue($row['page_url']) ?></td>
                             <td><?= displayValue($row['timezone']) ?></td>
-                            <td><?= displayValue($row['visitor_type']) ?></td>
-                            <td><?= $row['created_at'] ? date('jS M Y', strtotime($row['created_at'])) : "N/A" ?></td>
+                            <td>
+                                <?php
+                                if ($row['visitor_type'] == "HUMAN") {
+                                    echo '<h6 class="m-0 text-center"><i class="fa-solid fa-person"></i></h6>';
+                                } else {
+                                    echo '<h6 class="m-0 text-center"><i class="fa-solid fa-robot"></i></h6>';
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <?php if ($row['created_at']):
+                                    $date = date('jS M Y', strtotime($row['created_at']));
+                                    $time = date('g:i A', strtotime($row['created_at']));
+                                    ?>
+                                    <?= $date ?><br><span class="text-muted"><?= $time ?></span>
+                                <?php else: ?>
+                                    N/A
+                                <?php endif; ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

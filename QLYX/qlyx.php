@@ -45,22 +45,22 @@ class QLYX
 		$ipToStore = $ip;
 
 		$data = [
-			'user_ip_address'     => $ipToStore,
-			'user_profile'        => $user_profile,
-			'user_org'            => $user_org,
-			'user_browser_agent'  => $userAgent,
-			'user_device_type'    => $deviceType,
-			'user_os'             => $os,
-			'user_city'           => $geo['city'] ?? 'Unknown',
-			'user_region'         => $geo['region'] ?? 'Unknown',
-			'user_country'        => $geo['country'] ?? 'Unknown',
-			'browser_name'        => $browser['name'],
-			'browser_version'     => $browser['version'],
-			'browser_language'    => $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'Unknown',
-			'referring_url'       => $_SERVER['HTTP_REFERER'] ?? 'Direct',
-			'page_url'            => $_SERVER['REQUEST_URI'] ?? 'Unknown',
-			'timezone'            => $geo['timezone'] ?? 'Unknown',
-			'visitor_type'        => 'HUMAN'
+			'user_ip_address' => $ipToStore,
+			'user_profile' => $user_profile,
+			'user_org' => $user_org,
+			'user_browser_agent' => $userAgent,
+			'user_device_type' => $deviceType,
+			'user_os' => $os,
+			'user_city' => $geo['city'] ?? 'Unknown',
+			'user_region' => $geo['region'] ?? 'Unknown',
+			'user_country' => $geo['country'] ?? 'Unknown',
+			'browser_name' => $browser['name'],
+			'browser_version' => $browser['version'],
+			'browser_language' => $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'Unknown',
+			'referring_url' => $_SERVER['HTTP_REFERER'] ?? 'Direct',
+			'page_url' => $_SERVER['REQUEST_URI'] ?? 'Unknown',
+			'timezone' => $geo['timezone'] ?? 'Unknown',
+			'visitor_type' => 'HUMAN'
 		];
 
 		$this->insertData($data);
@@ -127,7 +127,8 @@ class QLYX
 
 	private function isBot(string $agent): bool
 	{
-		if (empty($agent)) return true;
+		if (empty($agent))
+			return true;
 
 		return (bool) preg_match('/
 			bot|crawl|slurp|spider|facebookexternalhit|facebot|pingdom|ia_archiver|
@@ -152,7 +153,8 @@ class QLYX
 
 		if ($httpCode === 200 && $response) {
 			$data = json_decode($response, true);
-			if (json_last_error() === JSON_ERROR_NONE) return $data;
+			if (json_last_error() === JSON_ERROR_NONE)
+				return $data;
 		}
 		return [];
 	}
@@ -181,18 +183,25 @@ class QLYX
 
 	private function getDeviceType(string $agent): string
 	{
-		if (preg_match('/Mobile|Android/i', $agent)) return 'Mobile';
-		if (preg_match('/Tablet/i', $agent)) return 'Tablet';
+		if (preg_match('/Mobile|Android/i', $agent))
+			return 'Mobile';
+		if (preg_match('/Tablet/i', $agent))
+			return 'Tablet';
 		return 'Desktop';
 	}
 
 	private function getUserOs(string $agent): string
 	{
-		if (preg_match('/windows/i', $agent)) return 'Windows';
-		if (preg_match('/macintosh|mac os x/i', $agent)) return 'Mac OS';
-		if (preg_match('/linux/i', $agent)) return 'Linux';
-		if (preg_match('/android/i', $agent)) return 'Android';
-		if (preg_match('/iphone/i', $agent)) return 'iPhone';
+		if (preg_match('/windows/i', $agent))
+			return 'Windows';
+		if (preg_match('/macintosh|mac os x/i', $agent))
+			return 'Mac OS';
+		if (preg_match('/linux/i', $agent))
+			return 'Linux';
+		if (preg_match('/android/i', $agent))
+			return 'Android';
+		if (preg_match('/iphone/i', $agent))
+			return 'iPhone';
 		return 'Unknown OS';
 	}
 
@@ -241,82 +250,102 @@ class QLYX
 	public function getStats(string $range = '24h'): array
 	{
 		$intervalMap = [
-			'24h' => 'INTERVAL 1 DAY',
-			'7d'  => 'INTERVAL 7 DAY',
-			'1m'  => 'INTERVAL 1 MONTH',
-			'1y'  => 'INTERVAL 1 YEAR'
+			'24h' => '1 DAY',
+			'7d' => '7 DAY',
+			'1m' => '1 MONTH',
+			'1y' => '1 YEAR'
 		];
 
 		$interval = $intervalMap[$range] ?? $intervalMap['24h'];
 
 		$data = [];
 
-		$data['total'] = $this->pdo->query("
-			SELECT COUNT(*) FROM qlyx_analytics WHERE created_at >= NOW() - $interval
-		")->fetchColumn();
+		// Use parameterized queries for safety and correctness
+		$where = "created_at >= DATE_SUB(NOW(), INTERVAL $interval)";
 
-		$data['by_device'] = $this->pdo->query("
-			SELECT user_device_type, COUNT(*) as count 
-			FROM qlyx_analytics 
-			WHERE created_at >= NOW() - $interval
-			GROUP BY user_device_type
-		")->fetchAll(PDO::FETCH_ASSOC);
+		// Total count
+		$stmt = $this->pdo->prepare("SELECT COUNT(*) FROM qlyx_analytics WHERE $where");
+		$stmt->execute();
+		$data['total'] = (int) $stmt->fetchColumn();
 
-		$data['by_browser'] = $this->pdo->query("
-			SELECT browser_name, COUNT(*) as count 
-			FROM qlyx_analytics 
-			WHERE created_at >= NOW() - $interval
-			GROUP BY browser_name
-		")->fetchAll(PDO::FETCH_ASSOC);
+		// Group by device
+		$stmt = $this->pdo->prepare("
+        SELECT user_device_type, COUNT(*) as count 
+        FROM qlyx_analytics 
+        WHERE $where
+        GROUP BY user_device_type
+    ");
+		$stmt->execute();
+		$data['by_device'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		$data['by_country'] = $this->pdo->query("
-			SELECT user_country, COUNT(*) as count 
-			FROM qlyx_analytics 
-			WHERE created_at >= NOW() - $interval
-			GROUP BY user_country
-			ORDER BY count DESC 
-			LIMIT 5
-		")->fetchAll(PDO::FETCH_ASSOC);
+		// Group by browser
+		$stmt = $this->pdo->prepare("
+        SELECT browser_name, COUNT(*) as count 
+        FROM qlyx_analytics 
+        WHERE $where
+        GROUP BY browser_name
+    ");
+		$stmt->execute();
+		$data['by_browser'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		$data['by_city'] = $this->pdo->query("
-			SELECT user_city, COUNT(*) as count 
-			FROM qlyx_analytics 
-			WHERE created_at >= NOW() - $interval
-			GROUP BY user_city
-			ORDER BY count DESC 
-			LIMIT 5
-		")->fetchAll(PDO::FETCH_ASSOC);
+		// Group by country (NO LIMIT)
+		$stmt = $this->pdo->prepare("
+        SELECT user_country, COUNT(*) as count 
+        FROM qlyx_analytics 
+        WHERE $where
+        GROUP BY user_country
+        ORDER BY count DESC
+    ");
+		$stmt->execute();
+		$data['by_country'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		$data['by_visitor_type'] = $this->pdo->query("
-			SELECT visitor_type, COUNT(*) as count 
-			FROM qlyx_analytics 
-			WHERE created_at >= NOW() - $interval
-			GROUP BY visitor_type
-		")->fetchAll(PDO::FETCH_ASSOC);
+		// Group by city (NO LIMIT)
+		$stmt = $this->pdo->prepare("
+        SELECT user_city, COUNT(*) as count 
+        FROM qlyx_analytics 
+        WHERE $where
+        GROUP BY user_city
+        ORDER BY count DESC
+    ");
+		$stmt->execute();
+		$data['by_city'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		$data['recent'] = $this->pdo->query("
-			SELECT 
-				COALESCE(user_ip_address, 'N/A') as user_ip_address, 
-				COALESCE(user_profile, 'N/A') as user_profile,
-				COALESCE(user_org, 'N/A') as user_org,
-				COALESCE(user_device_type, 'N/A') as user_device_type, 
-				COALESCE(browser_name, 'N/A') as browser_name, 
-				COALESCE(user_country, 'N/A') as user_country, 
-				COALESCE(user_city, 'N/A') as user_city, 
-				COALESCE(user_region, 'N/A') as user_region,
-				COALESCE(user_os, 'N/A') as user_os,
-				COALESCE(browser_language, 'N/A') as browser_language,
-				COALESCE(referring_url, 'N/A') as referring_url,
-				COALESCE(page_url, 'N/A') as page_url,
-				COALESCE(timezone, 'N/A') as timezone,
-				COALESCE(visitor_type, 'N/A') as visitor_type,
-				created_at 
-			FROM qlyx_analytics 
-			WHERE created_at >= NOW() - $interval
-			ORDER BY created_at DESC 
-			LIMIT 10
-		")->fetchAll(PDO::FETCH_ASSOC);
+		// Group by visitor type
+		$stmt = $this->pdo->prepare("
+        SELECT visitor_type, COUNT(*) as count 
+        FROM qlyx_analytics 
+        WHERE $where
+        GROUP BY visitor_type
+    ");
+		$stmt->execute();
+		$data['by_visitor_type'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		// Recent full details (NO LIMIT)
+		$stmt = $this->pdo->prepare("
+        SELECT 
+            COALESCE(user_ip_address, 'N/A') as user_ip_address, 
+            COALESCE(user_profile, 'N/A') as user_profile,
+            COALESCE(user_org, 'N/A') as user_org,
+            COALESCE(user_device_type, 'N/A') as user_device_type, 
+            COALESCE(browser_name, 'N/A') as browser_name, 
+            COALESCE(user_country, 'N/A') as user_country, 
+            COALESCE(user_city, 'N/A') as user_city, 
+            COALESCE(user_region, 'N/A') as user_region,
+            COALESCE(user_os, 'N/A') as user_os,
+            COALESCE(browser_language, 'N/A') as browser_language,
+            COALESCE(referring_url, 'N/A') as referring_url,
+            COALESCE(page_url, 'N/A') as page_url,
+            COALESCE(timezone, 'N/A') as timezone,
+            COALESCE(visitor_type, 'N/A') as visitor_type,
+            created_at 
+        FROM qlyx_analytics 
+        WHERE $where
+        ORDER BY created_at DESC
+    ");
+		$stmt->execute();
+		$data['recent'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 		return $data;
 	}
+
 }
