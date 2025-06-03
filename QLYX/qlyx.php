@@ -137,66 +137,85 @@ class QLYX
 			return true;
 		}
 
-		$bots = [
-			'bot',
-			'crawl',
-			'slurp',
-			'spider',
-			'facebookexternalhit',
-			'facebot',
-			'pingdom',
-			'ia_archiver',
-			'twitterbot',
-			'linkedinbot',
-			'embedly',
-			'quora link preview',
-			'showyoubot',
-			'outbrain',
-			'pinterest',
-			'bitlybot',
-			'nuzzel',
-			'vkShare',
-			'w3c_validator',
-			'redditbot',
-			'applebot',
-			'whatsapp',
-			'flipboard',
-			'tumblr',
-			'telegrambot',
-			'slackbot',
-			'discordbot',
-			'googlebot',
-			'bingbot',
-			'yahoo! slurp',
-			'duckduckbot',
-			'baiduspider',
-			'yandexbot',
-			'sogou',
-			'exabot',
+		static $pattern = null;
 
-			// Modern headless browsers / automation frameworks
-			'headless',
-			'phantomjs',
-			'selenium',
-			'puppeteer',
-			'playwright',
+		if ($pattern === null) {
+			$bots = [
+				// Classic bots
+				'bot',
+				'crawl',
+				'slurp',
+				'spider',
 
-			// Monitoring services
-			'uptime',
-			'statuscake',
-			'newrelicpinger',
-			'site24x7',
-			'checkly',
+				// Major platform scrapers
+				'facebookexternalhit',
+				'facebot',
+				'twitterbot',
+				'linkedinbot',
+				'embedly',
+				'quora link preview',
+				'showyoubot',
+				'outbrain',
+				'pinterest',
+				'bitlybot',
+				'nuzzel',
+				'vkShare',
+				'redditbot',
+				'applebot',
+				'flipboard',
+				'tumblr',
+				'telegrambot',
+				'slackbot',
+				'discordbot',
 
-			// Hosting provider identifiers
-			'amazonaws.com',
-			'digitalocean',
-			'googlecloud',
-			'linode',
-			'azure'
-		];
+				// Search engine bots
+				'googlebot',
+				'bingbot',
+				'yahoo! slurp',
+				'duckduckbot',
+				'baiduspider',
+				'yandexbot',
+				'sogou',
+				'exabot',
+				'ia_archiver',
 
-		$pattern = '/' . implode('|', array_map('preg_quote', $bots)) . '/i';
+				// Headless browsers & automation tools
+				'headless',
+				'phantomjs',
+				'selenium',
+				'puppeteer',
+				'playwright',
+				'chrome-lighthouse',
+
+				// Monitoring/uptime bots
+				'pingdom',
+				'uptime',
+				'statuscake',
+				'newrelicpinger',
+				'site24x7',
+				'checkly',
+
+				// API clients
+				'python-urllib',
+				'python-requests',
+				'go-http-client',
+				'java/',
+				'okhttp',
+
+				// Hosting / cloud IPs
+				'amazonaws.com',
+				'digitalocean',
+				'googlecloud',
+				'linode',
+				'azure',
+
+				// App-specific identifiers
+				'LinkedInApp'
+			];
+
+			// Compile once
+			$pattern = '/' . implode('|', array_map('preg_quote', $bots)) . '/i';
+		}
 
 		return (bool) preg_match($pattern, $agent);
 	}
