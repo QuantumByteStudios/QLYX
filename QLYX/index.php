@@ -41,6 +41,7 @@ function isSelected($value, $range)
                 <a class="text-dark text-decoration-none" href=".">
                     <h1 class="m-0">QLYX Analytics</h1>
                 </a>
+                <p><?php echo "<pre>Current User: " . ($_COOKIE['qlyx_user_profile'] ?? 'N/A') . "</pre>"; ?></p>
             </div>
             <div class="col-6 text-end">
                 <form method="get" class="mb-4">
@@ -164,6 +165,7 @@ function isSelected($value, $range)
             <table class="table table-striped table-bordered table-hover align-middle">
                 <thead class="table-dark">
                     <tr>
+                        <th>#</th>
                         <th>IP</th>
                         <th>User</th>
                         <th>Org</th>
@@ -187,9 +189,10 @@ function isSelected($value, $range)
                     {
                         return ($value === "Unknown" || $value === null) ? "N/A" : htmlspecialchars($value);
                     }
-
+                    $count = 1;
                     foreach ($stats['recent'] as $row): ?>
                         <tr>
+                            <td><?= $count ?></td>
                             <td><?= displayValue($row['user_ip_address']) ?></td>
                             <td><?= displayValue($row['user_profile']) ?></td>
                             <td><?= displayValue($row['user_org']) ?></td>
@@ -223,6 +226,7 @@ function isSelected($value, $range)
                                 <?php endif; ?>
                             </td>
                         </tr>
+                        <?php $count++; ?>
                     <?php endforeach; ?>
                 </tbody>
             </table>

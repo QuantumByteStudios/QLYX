@@ -41,6 +41,12 @@ class QLYX
 		$os = $this->getUserOs($userAgent);
 		$user_profile = $this->generateUserProfile($ip, $userAgent, $deviceType, $os, $browser);
 		$user_org = $this->getUserOrganization($ip);
+		$visitor_type = $this->isBot($userAgent);
+		if ($visitor_type) {
+			$visitor_type = 'BOT';
+		} else {
+			$visitor_type = 'HUMAN';
+		}
 
 		$ipToStore = $ip;
 
@@ -60,7 +66,7 @@ class QLYX
 			'referring_url' => $_SERVER['HTTP_REFERER'] ?? 'Direct',
 			'page_url' => $_SERVER['REQUEST_URI'] ?? 'Unknown',
 			'timezone' => $geo['timezone'] ?? 'Unknown',
-			'visitor_type' => 'HUMAN'
+			'visitor_type' => $visitor_type,
 		];
 
 		$this->insertData($data);
@@ -127,17 +133,72 @@ class QLYX
 
 	private function isBot(string $agent): bool
 	{
-		if (empty($agent))
+		if (empty($agent)) {
 			return true;
+		}
 
-		return (bool) preg_match('/
-			bot|crawl|slurp|spider|facebookexternalhit|facebot|pingdom|ia_archiver|
-			twitterbot|linkedinbot|embedly|quora\ link\ preview|showyoubot|outbrain|
-			pinterest|bitlybot|nuzzel|vkShare|W3C_Validator|redditbot|Applebot|
-			WhatsApp|flipboard|tumblr|TelegramBot|Slackbot|discordbot|
-			Googlebot|Bingbot|Yahoo! Slurp|DuckDuckBot|Baiduspider|YandexBot|
-			Sogou|Exabot
-		/ix', $agent);
+		$bots = [
+			'bot',
+			'crawl',
+			'slurp',
+			'spider',
+			'facebookexternalhit',
+			'facebot',
+			'pingdom',
+			'ia_archiver',
+			'twitterbot',
+			'linkedinbot',
+			'embedly',
+			'quora link preview',
+			'showyoubot',
+			'outbrain',
+			'pinterest',
+			'bitlybot',
+			'nuzzel',
+			'vkShare',
+			'w3c_validator',
+			'redditbot',
+			'applebot',
+			'whatsapp',
+			'flipboard',
+			'tumblr',
+			'telegrambot',
+			'slackbot',
+			'discordbot',
+			'googlebot',
+			'bingbot',
+			'yahoo! slurp',
+			'duckduckbot',
+			'baiduspider',
+			'yandexbot',
+			'sogou',
+			'exabot',
+
+			// Modern headless browsers / automation frameworks
+			'headless',
+			'phantomjs',
+			'selenium',
+			'puppeteer',
+			'playwright',
+
+			// Monitoring services
+			'uptime',
+			'statuscake',
+			'newrelicpinger',
+			'site24x7',
+			'checkly',
+
+			// Hosting provider identifiers
+			'amazonaws.com',
+			'digitalocean',
+			'googlecloud',
+			'linode',
+			'azure'
+		];
+
+		$pattern = '/' . implode('|', array_map('preg_quote', $bots)) . '/i';
+
+		return (bool) preg_match($pattern, $agent);
 	}
 
 	private function getGeolocation(string $ip): array
