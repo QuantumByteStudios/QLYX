@@ -141,15 +141,14 @@ class QLYX
 
 		if ($pattern === null) {
 			$bots = [
-				// Classic bots
 				'bot',
 				'crawl',
 				'slurp',
 				'spider',
-
-				// Major platform scrapers
 				'facebookexternalhit',
 				'facebot',
+				'pingdom',
+				'ia_archiver',
 				'twitterbot',
 				'linkedinbot',
 				'embedly',
@@ -160,15 +159,15 @@ class QLYX
 				'bitlybot',
 				'nuzzel',
 				'vkShare',
+				'w3c_validator',
 				'redditbot',
 				'applebot',
+				'whatsapp',
 				'flipboard',
 				'tumblr',
 				'telegrambot',
 				'slackbot',
 				'discordbot',
-
-				// Search engine bots
 				'googlebot',
 				'bingbot',
 				'yahoo! slurp',
@@ -177,44 +176,42 @@ class QLYX
 				'yandexbot',
 				'sogou',
 				'exabot',
-				'ia_archiver',
 
-				// Headless browsers & automation tools
+				// Headless / automation tools
 				'headless',
 				'phantomjs',
 				'selenium',
 				'puppeteer',
 				'playwright',
-				'chrome-lighthouse',
+				'chrome-lighthouse', // <-- THIS is critical!
 
-				// Monitoring/uptime bots
-				'pingdom',
+				// Monitoring
 				'uptime',
 				'statuscake',
 				'newrelicpinger',
 				'site24x7',
 				'checkly',
 
-				// API clients
+				// HTTP clients
 				'python-urllib',
 				'python-requests',
 				'go-http-client',
 				'java/',
 				'okhttp',
 
-				// Hosting / cloud IPs
+				// Hosting
 				'amazonaws.com',
 				'digitalocean',
 				'googlecloud',
 				'linode',
 				'azure',
 
-				// App-specific identifiers
+				// App user-agents
 				'LinkedInApp'
 			];
 
-			// Compile once
-			$pattern = '/' . implode('|', array_map('preg_quote', $bots)) . '/i';
+			// 🧠 No preg_quote. It's safer to let literal matches flow
+			$pattern = '/' . implode('|', $bots) . '/i';
 		}
 
 		return (bool) preg_match($pattern, $agent);
