@@ -138,7 +138,9 @@ class QLYX
 		}
 
 		$sessionId = bin2hex(random_bytes(16));
-		setcookie('qlyx_session', $sessionId, time() + $this->config['session_duration'], '/');
+		if (!headers_sent()) {
+			setcookie('qlyx_session', $sessionId, time() + $this->config['session_duration'], '/');
+		}
 		return $sessionId;
 	}
 
