@@ -7,14 +7,48 @@ class QLYX
 	private bool $anonymizeIp;
 	private bool $autoCreateTable;
 	private string $logFile;
+	private array $config;
+	private array $cache = [];
 
-	public function __construct(PDO $pdo, array $ignoredIps = [], bool $anonymizeIp = false, bool $autoCreateTable = true, string $logFile = 'qlyx_log.txt')
+	public function __construct(PDO $pdo, array $ignoredIps = [], bool $anonymizeIp = false, bool $autoCreateTable = true, string $logFile = 'qlyx_log.txt', array $config = [])
 	{
 		$this->pdo = $pdo;
 		$this->ignoredIps = $ignoredIps;
 		$this->anonymizeIp = $anonymizeIp;
 		$this->autoCreateTable = $autoCreateTable;
 		$this->logFile = $logFile;
+		$this->config = array_merge([
+			'cache_duration' => 300, // 5 minutes
+			'max_recent_visitors' => 100,
+			'timezone' => 'UTC',
+			'session_duration' => 1800, // 30 minutes
+			'bot_detection_level' => 'normal', // normal, strict, or lenient
+			'enable_geolocation' => true,
+			'enable_organization_lookup' => true,
+			'enable_session_tracking' => true,
+			'enable_page_tracking' => true,
+			'enable_referrer_tracking' => true,
+			'enable_browser_tracking' => true,
+			'enable_device_tracking' => true,
+			'enable_os_tracking' => true,
+			'enable_language_tracking' => true,
+			'enable_timezone_tracking' => true,
+			'enable_user_profile' => true,
+			'enable_visitor_type' => true,
+			'enable_visitor_country' => true,
+			'enable_visitor_city' => true,
+			'enable_visitor_region' => true,
+			'enable_visitor_org' => true,
+			'enable_visitor_browser' => true,
+			'enable_visitor_device' => true,
+			'enable_visitor_os' => true,
+			'enable_visitor_language' => true,
+			'enable_visitor_timezone' => true,
+			'enable_visitor_referrer' => true,
+			'enable_visitor_page' => true,
+			'enable_visitor_session' => true,
+			'enable_visitor_profile' => true
+		], $config);
 
 		if ($this->autoCreateTable) {
 			$this->createTable();
@@ -30,52 +64,111 @@ class QLYX
 		}
 
 		$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+		$sessionId = $this->getSessionId();
 
-		$geo = $this->getGeolocation($ip);
-		$browser = $this->getBrowserInfo($userAgent);
-		$deviceType = $this->getDeviceType($userAgent);
-		$os = $this->getUserOs($userAgent);
-		$user_profile = $this->generateUserProfile($ip, $userAgent, $deviceType, $os, $browser);
-		$user_org = $this->getUserOrganization($ip);
-		$visitor_type = $this->isBot($userAgent, $user_org);
-		if ($visitor_type) {
-			$visitor_type = 'BOT';
-		} else {
-			$visitor_type = 'HUMAN';
-		}
-
-		$ipToStore = $ip;
-
+		// Get visitor data based on enabled features
 		$data = [
-			'user_ip_address' => $ipToStore,
-			'user_profile' => $user_profile,
-			'user_org' => $user_org,
-			'user_browser_agent' => $userAgent,
-			'user_device_type' => $deviceType,
-			'user_os' => $os,
-			'user_city' => $geo['city'] ?? 'Unknown',
-			'user_region' => $geo['region'] ?? 'Unknown',
-			'user_country' => $geo['country'] ?? 'Unknown',
-			'browser_name' => $browser['name'],
-			'browser_version' => $browser['version'],
-			'browser_language' => $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'Unknown',
-			'referring_url' => $_SERVER['HTTP_REFERER'] ?? 'Direct',
-			'page_url' => $_SERVER['REQUEST_URI'] ?? 'Unknown',
-			'timezone' => $geo['timezone'] ?? 'Unknown',
-			'visitor_type' => $visitor_type,
+			'user_ip_address' => $this->anonymizeIp ? $this->anonymize($ip) : $ip,
+			'session_id' => $sessionId,
+			'created_at' => date('Y-m-d H:i:s')
 		];
 
+		if ($this->config['enable_geolocation']) {
+			$geo = $this->getGeolocation($ip);
+			if ($this->config['enable_visitor_country'])
+				$data['user_country'] = $geo['country'] ?? 'Unknown';
+			if ($this->config['enable_visitor_city'])
+				$data['user_city'] = $geo['city'] ?? 'Unknown';
+			if ($this->config['enable_visitor_region'])
+				$data['user_region'] = $geo['region'] ?? 'Unknown';
+			if ($this->config['enable_visitor_timezone'])
+				$data['timezone'] = $geo['timezone'] ?? 'Unknown';
+		}
+
+		if ($this->config['enable_browser_tracking']) {
+			$browser = $this->getBrowserInfo($userAgent);
+			$data['browser_name'] = $browser['name'];
+			$data['browser_version'] = $browser['version'];
+		}
+
+		if ($this->config['enable_device_tracking']) {
+			$data['user_device_type'] = $this->getDeviceType($userAgent);
+		}
+
+		if ($this->config['enable_os_tracking']) {
+			$data['user_os'] = $this->getUserOs($userAgent);
+		}
+
+		if ($this->config['enable_language_tracking']) {
+			$data['browser_language'] = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'Unknown';
+		}
+
+		if ($this->config['enable_referrer_tracking']) {
+			$data['referring_url'] = $_SERVER['HTTP_REFERER'] ?? 'Direct';
+		}
+
+		if ($this->config['enable_page_tracking']) {
+			$data['page_url'] = $_SERVER['REQUEST_URI'] ?? 'Unknown';
+		}
+
+		if ($this->config['enable_organization_lookup']) {
+			$data['user_org'] = $this->getUserOrganization($ip);
+		}
+
+		if ($this->config['enable_visitor_type']) {
+			$data['visitor_type'] = $this->isBot($userAgent, $data['user_org'] ?? '') ? 'BOT' : 'HUMAN';
+		}
+
+		if ($this->config['enable_user_profile']) {
+			$data['user_profile'] = $this->generateUserProfile($ip, $userAgent, $data['user_device_type'] ?? '', $data['user_os'] ?? '', $browser ?? ['name' => 'Unknown', 'version' => 'Unknown']);
+		}
+
 		$this->insertData($data);
+		$this->updateSession($sessionId, $data);
+	}
+
+	private function getSessionId(): string
+	{
+		if (!$this->config['enable_session_tracking']) {
+			return '';
+		}
+
+		if (isset($_COOKIE['qlyx_session'])) {
+			return $_COOKIE['qlyx_session'];
+		}
+
+		$sessionId = bin2hex(random_bytes(16));
+		setcookie('qlyx_session', $sessionId, time() + $this->config['session_duration'], '/');
+		return $sessionId;
+	}
+
+	private function updateSession(string $sessionId, array $data): void
+	{
+		if (!$this->config['enable_session_tracking'] || empty($sessionId)) {
+			return;
+		}
+
+		$stmt = $this->pdo->prepare("
+			UPDATE qlyx_analytics 
+			SET last_activity = NOW(),
+				page_count = page_count + 1
+			WHERE session_id = :session_id
+			ORDER BY created_at DESC
+			LIMIT 1
+		");
+		$stmt->execute(['session_id' => $sessionId]);
 	}
 
 	private function generateUserProfile($ip, $userAgent, $deviceType, $os, $browser): string
 	{
-		// generate a hash based on $ip, $userAgent, $deviceType, $os, $browser
+		// Generate a hash based on user characteristics
 		$user_profile = substr(hash('sha256', $ip . $userAgent . $deviceType . $os . $browser['name'] . $browser['version']), 0, 50);
-		// Set this profile to a cookie or session if needed
+
+		// Set this profile to a cookie if not already set
 		if (!isset($_COOKIE['qlyx_user_profile']) && !headers_sent()) {
 			setcookie('qlyx_user_profile', $user_profile, time() + 86400 * 30, "/"); // 30 days
 		}
+
 		return $user_profile;
 	}
 
@@ -100,7 +193,16 @@ class QLYX
 				page_url TEXT,
 				timezone VARCHAR(100),
 				visitor_type VARCHAR(20),
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				session_id VARCHAR(32),
+				page_count INT DEFAULT 1,
+				last_activity TIMESTAMP,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				INDEX idx_session (session_id),
+				INDEX idx_created_at (created_at),
+				INDEX idx_visitor_type (visitor_type),
+				INDEX idx_country (user_country),
+				INDEX idx_device (user_device_type),
+				INDEX idx_browser (browser_name)
 			)";
 		$this->pdo->exec($query);
 	}
@@ -109,16 +211,41 @@ class QLYX
 	{
 		$sql = "
 			INSERT INTO qlyx_analytics (
-				user_ip_address, user_profile, user_org, user_browser_agent, user_device_type, user_os, user_city, 
-				user_region, user_country, browser_name, browser_version, browser_language, 
-				referring_url, page_url, timezone, visitor_type
+				user_ip_address, user_profile, user_org, user_browser_agent, 
+				user_device_type, user_os, user_city, user_region, user_country, 
+				browser_name, browser_version, browser_language, referring_url, 
+				page_url, timezone, visitor_type, session_id, page_count
 			) VALUES (
-				:user_ip_address, :user_profile, :user_org, :user_browser_agent, :user_device_type, :user_os, :user_city, 
-				:user_region, :user_country, :browser_name, :browser_version, :browser_language, 
-				:referring_url, :page_url, :timezone, :visitor_type
+				:user_ip_address, :user_profile, :user_org, :user_browser_agent, 
+				:user_device_type, :user_os, :user_city, :user_region, :user_country, 
+				:browser_name, :browser_version, :browser_language, :referring_url, 
+				:page_url, :timezone, :visitor_type, :session_id, :page_count
 			)";
+
+		// Ensure all required parameters are present
+		$params = [
+			'user_ip_address' => $data['user_ip_address'] ?? null,
+			'user_profile' => $data['user_profile'] ?? null,
+			'user_org' => $data['user_org'] ?? null,
+			'user_browser_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+			'user_device_type' => $data['user_device_type'] ?? null,
+			'user_os' => $data['user_os'] ?? null,
+			'user_city' => $data['user_city'] ?? null,
+			'user_region' => $data['user_region'] ?? null,
+			'user_country' => $data['user_country'] ?? null,
+			'browser_name' => $data['browser_name'] ?? null,
+			'browser_version' => $data['browser_version'] ?? null,
+			'browser_language' => $data['browser_language'] ?? null,
+			'referring_url' => $data['referring_url'] ?? null,
+			'page_url' => $data['page_url'] ?? null,
+			'timezone' => $data['timezone'] ?? null,
+			'visitor_type' => $data['visitor_type'] ?? null,
+			'session_id' => $data['session_id'] ?? null,
+			'page_count' => $data['page_count'] ?? 1
+		];
+
 		$stmt = $this->pdo->prepare($sql);
-		$stmt->execute($data);
+		$stmt->execute($params);
 	}
 
 	private function getClientIp(): ?string
@@ -336,19 +463,44 @@ class QLYX
 
 	public function getDailyTrends(): array
 	{
+		$cacheKey = 'daily_trends';
+		if (isset($this->cache[$cacheKey]) && (time() - $this->cache[$cacheKey]['time']) < $this->config['cache_duration']) {
+			return $this->cache[$cacheKey]['data'];
+		}
+
 		$stmt = $this->pdo->prepare("
-			SELECT DATE(created_at) as date, COUNT(*) as visits
+			SELECT 
+				DATE(created_at) as date,
+				COUNT(*) as visits,
+				COUNT(DISTINCT session_id) as sessions,
+				COUNT(DISTINCT user_ip_address) as unique_visitors,
+				COUNT(DISTINCT CASE WHEN visitor_type = 'HUMAN' THEN user_ip_address END) as human_visitors,
+				COUNT(DISTINCT CASE WHEN visitor_type = 'BOT' THEN user_ip_address END) as bot_visitors,
+				AVG(page_count) as avg_pages_per_session,
+				AVG(TIMESTAMPDIFF(MINUTE, created_at, last_activity)) as avg_session_duration
 			FROM qlyx_analytics
 			WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
 			GROUP BY DATE(created_at)
 			ORDER BY DATE(created_at) ASC
 		");
 		$stmt->execute();
-		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		$this->cache[$cacheKey] = [
+			'time' => time(),
+			'data' => $data
+		];
+
+		return $data;
 	}
 
 	public function getStats(string $range = '24h'): array
 	{
+		$cacheKey = "stats_{$range}";
+		if (isset($this->cache[$cacheKey]) && (time() - $this->cache[$cacheKey]['time']) < $this->config['cache_duration']) {
+			return $this->cache[$cacheKey]['data'];
+		}
+
 		$intervalMap = [
 			'24h' => '1 DAY',
 			'7d' => '7 DAY',
@@ -357,96 +509,203 @@ class QLYX
 		];
 
 		$interval = $intervalMap[$range] ?? $intervalMap['24h'];
+		$data = $this->initializeStatsData();
 
-		$data = [];
+		try {
+			$where = "created_at >= DATE_SUB(NOW(), INTERVAL $interval)";
 
-		// Use parameterized queries for safety and correctness
-		$where = "created_at >= DATE_SUB(NOW(), INTERVAL $interval)";
+			// Get total visitors and visitor type counts
+			$stmt = $this->pdo->prepare("
+				SELECT 
+					COUNT(*) as total,
+					SUM(CASE WHEN visitor_type = 'HUMAN' THEN 1 ELSE 0 END) as human_count,
+					SUM(CASE WHEN visitor_type = 'BOT' THEN 1 ELSE 0 END) as bot_count
+				FROM qlyx_analytics 
+				WHERE $where
+			");
+			$stmt->execute();
+			$counts = $stmt->fetch(PDO::FETCH_ASSOC);
 
-		// Total count
-		$stmt = $this->pdo->prepare("SELECT COUNT(*) FROM qlyx_analytics WHERE $where");
-		$stmt->execute();
-		$data['total'] = (int) $stmt->fetchColumn();
+			$data['total'] = (int) $counts['total'];
+			$data['by_visitor_type'] = [
+				['visitor_type' => 'HUMAN', 'count' => (int) $counts['human_count']],
+				['visitor_type' => 'BOT', 'count' => (int) $counts['bot_count']]
+			];
 
-		// Group by device
-		$stmt = $this->pdo->prepare("
-        SELECT user_device_type, COUNT(*) as count 
-        FROM qlyx_analytics 
-        WHERE $where
-        GROUP BY user_device_type
-    ");
-		$stmt->execute();
-		$data['by_device'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			// Get session statistics
+			if ($this->config['enable_session_tracking']) {
+				$stmt = $this->pdo->prepare("
+					SELECT 
+						COUNT(DISTINCT session_id) as total_sessions,
+						AVG(page_count) as avg_pages,
+						AVG(TIMESTAMPDIFF(MINUTE, created_at, last_activity)) as avg_duration
+					FROM qlyx_analytics 
+					WHERE $where AND session_id IS NOT NULL
+				");
+				$stmt->execute();
+				$sessionStats = $stmt->fetch(PDO::FETCH_ASSOC);
+				$data['sessions'] = [
+					'total' => (int) $sessionStats['total_sessions'],
+					'average_pages' => round($sessionStats['avg_pages'], 1),
+					'average_duration' => round($sessionStats['avg_duration'], 1)
+				];
+			}
 
-		// Group by browser
-		$stmt = $this->pdo->prepare("
-        SELECT browser_name, COUNT(*) as count 
-        FROM qlyx_analytics 
-        WHERE $where
-        GROUP BY browser_name
-    ");
-		$stmt->execute();
-		$data['by_browser'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			// Get device distribution
+			$stmt = $this->pdo->prepare("
+				SELECT user_device_type, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where AND user_device_type IS NOT NULL
+				GROUP BY user_device_type
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_device'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		// Group by country (NO LIMIT)
-		$stmt = $this->pdo->prepare("
-        SELECT user_country, COUNT(*) as count 
-        FROM qlyx_analytics 
-        WHERE $where
-        GROUP BY user_country
-        ORDER BY count DESC
-    ");
-		$stmt->execute();
-		$data['by_country'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			// Get browser distribution
+			$stmt = $this->pdo->prepare("
+				SELECT browser_name, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where AND browser_name IS NOT NULL
+				GROUP BY browser_name
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_browser'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		// Group by city (NO LIMIT)
-		$stmt = $this->pdo->prepare("
-        SELECT user_city, COUNT(*) as count 
-        FROM qlyx_analytics 
-        WHERE $where
-        GROUP BY user_city
-        ORDER BY count DESC
-    ");
-		$stmt->execute();
-		$data['by_city'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			// Get country distribution
+			$stmt = $this->pdo->prepare("
+				SELECT user_country, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where AND user_country IS NOT NULL
+				GROUP BY user_country
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_country'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		// Group by visitor type
-		$stmt = $this->pdo->prepare("
-        SELECT visitor_type, COUNT(*) as count 
-        FROM qlyx_analytics 
-        WHERE $where
-        GROUP BY visitor_type
-    ");
-		$stmt->execute();
-		$data['by_visitor_type'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			// Get city distribution
+			$stmt = $this->pdo->prepare("
+				SELECT user_city, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where AND user_city IS NOT NULL
+				GROUP BY user_city
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_city'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		// Recent full details (NO LIMIT)
-		$stmt = $this->pdo->prepare("
-        SELECT 
-            COALESCE(user_ip_address, 'N/A') as user_ip_address, 
-            COALESCE(user_profile, 'N/A') as user_profile,
-            COALESCE(user_org, 'N/A') as user_org,
-			COALESCE(user_browser_agent, 'N/A') as user_browser_agent,
-            COALESCE(user_device_type, 'N/A') as user_device_type, 
-            COALESCE(browser_name, 'N/A') as browser_name, 
-            COALESCE(user_country, 'N/A') as user_country, 
-            COALESCE(user_city, 'N/A') as user_city, 
-            COALESCE(user_region, 'N/A') as user_region,
-            COALESCE(user_os, 'N/A') as user_os,
-            COALESCE(browser_language, 'N/A') as browser_language,
-            COALESCE(referring_url, 'N/A') as referring_url,
-            COALESCE(page_url, 'N/A') as page_url,
-            COALESCE(timezone, 'N/A') as timezone,
-            COALESCE(visitor_type, 'N/A') as visitor_type,
-            created_at 
-        FROM qlyx_analytics 
-        WHERE $where
-        ORDER BY created_at DESC
-    ");
-		$stmt->execute();
-		$data['recent'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			// Get OS distribution
+			$stmt = $this->pdo->prepare("
+				SELECT user_os, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where
+				GROUP BY user_os
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_os'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+			// Get language distribution
+			$stmt = $this->pdo->prepare("
+				SELECT browser_language, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where
+				GROUP BY browser_language
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_language'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+			// Get timezone distribution
+			$stmt = $this->pdo->prepare("
+				SELECT timezone, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where
+				GROUP BY timezone
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_timezone'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+			// Get organization distribution
+			$stmt = $this->pdo->prepare("
+				SELECT user_org, COUNT(*) as count 
+				FROM qlyx_analytics 
+				WHERE $where
+				GROUP BY user_org
+				ORDER BY count DESC
+			");
+			$stmt->execute();
+			$data['by_org'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+			// Get recent visitors with all details
+			$stmt = $this->pdo->prepare("
+				SELECT 
+					user_ip_address,
+					user_profile,
+					user_org,
+					user_device_type,
+					browser_name,
+					user_country,
+					user_city,
+					user_os,
+					browser_language,
+					timezone,
+					visitor_type,
+					created_at,
+					page_count,
+					TIMESTAMPDIFF(MINUTE, created_at, last_activity) as session_duration
+				FROM qlyx_analytics 
+				WHERE $where
+				ORDER BY created_at DESC
+				LIMIT :limit
+			");
+			$stmt->bindValue(':limit', (int) $this->config['max_recent_visitors'], PDO::PARAM_INT);
+			$stmt->execute();
+			$recentVisitors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+			// Only set recent visitors if we actually have data
+			if (!empty($recentVisitors)) {
+				$data['recent'] = $recentVisitors;
+			}
+
+			$this->cache[$cacheKey] = [
+				'time' => time(),
+				'data' => $data
+			];
+		} catch (PDOException $e) {
+			$this->log("Error in getStats: " . $e->getMessage());
+		}
+		$this->log("getStats data being returned: " . json_encode(['recent' => $data['recent'], 'by_os' => $data['by_os'], 'by_city' => $data['by_city']]));
 		return $data;
 	}
 
+	private function initializeStatsData(): array
+	{
+		return [
+			'total' => 0,
+			'by_device' => [],
+			'by_browser' => [],
+			'by_country' => [],
+			'by_city' => [],
+			'by_visitor_type' => [],
+			'by_os' => [],
+			'by_language' => [],
+			'by_timezone' => [],
+			'by_org' => [],
+			'by_session' => [],
+			'recent' => [],
+			'sessions' => [
+				'total' => 0,
+				'average_pages' => 0,
+				'average_duration' => 0
+			]
+		];
+	}
+
+	public function clearCache(): void
+	{
+		$this->cache = [];
+	}
 }

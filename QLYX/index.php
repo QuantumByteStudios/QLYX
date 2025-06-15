@@ -14,6 +14,22 @@ function isSelected($value, $range)
     return $value === $range ? 'selected' : '';
 }
 
+function displayValue($value)
+{
+    return ($value === "Unknown" || $value === null || $value === '') ? "N/A" : htmlspecialchars($value);
+}
+
+// Calculate visitor counts
+$humanCount = 0;
+$botCount = 0;
+foreach ($stats['recent'] as $row) {
+    if ($row['visitor_type'] == "HUMAN") {
+        $humanCount++;
+    } else {
+        $botCount++;
+    }
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -25,27 +41,200 @@ function isSelected($value, $range)
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --primary-color: #000000;
+            --secondary-color: #333333;
+            --light-color: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            background-color: var(--light-color);
+        }
+
         td,
         th {
             font-size: 12px;
             text-wrap: wrap;
         }
+
+        .metric-card {
+            transition: all 0.3s ease;
+            background-color: var(--primary-color) !important;
+            border: none;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-card .card-body {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card .metric-details {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-color);
+            padding: 1rem;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            z-index: 1;
+        }
+
+        .metric-card:hover .metric-details {
+            transform: translateY(0);
+        }
+
+        .metric-details ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            color: var(--light-color);
+        }
+
+        .metric-details li {
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 300px;
+        }
+
+        .visitor-icon {
+            font-size: 24px;
+            margin-right: 10px;
+            color: var(--light-color);
+        }
+
+        .visitor-count {
+            font-size: 36px;
+            font-weight: bold;
+            color: var(--light-color);
+        }
+
+        .visitor-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .card {
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-title {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .table-dark {
+            background-color: var(--primary-color) !important;
+        }
+
+        .badge {
+            font-weight: 500;
+        }
+
+        .badge.bg-success {
+            background-color: var(--primary-color) !important;
+        }
+
+        .badge.bg-warning {
+            background-color: var(--secondary-color) !important;
+        }
+
+        .cursor-pointer {
+            cursor: pointer;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--light-color);
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--primary-color);
+            color: var(--light-color);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 
-<body class="bg-light">
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Refresh Button -->
+    <button class="refresh-btn" onclick="refreshData()">
+        <i class="fas fa-sync-alt"></i>
+    </button>
 
     <div class="container py-4">
-        <div class="row">
+        <!-- Header Section -->
+        <div class="row mb-4">
             <div class="col-6 text-start">
                 <a class="text-dark text-decoration-none" href=".">
                     <h1 class="m-0">QLYX Analytics</h1>
                 </a>
-                <p><?php echo "<pre>Current User: " . ($_COOKIE['qlyx_user_profile'] ?? 'N/A') . "</pre>"; ?></p>
+                <p class="text-muted"><?php echo "Current User: " . ($_COOKIE['qlyx_user_profile'] ?? 'N/A'); ?></p>
             </div>
             <div class="col-6 text-end">
                 <form method="get" class="mb-4">
-                    <label for="range" class="form-label">Filter</label>
+                    <label for="range" class="form-label">Time Range</label>
                     <select name="range" id="range" class="form-select w-auto d-inline-block"
                         onchange="this.form.submit()">
                         <option value="24h" <?= isSelected('24h', $range) ?>>Last 24 Hours</option>
@@ -57,200 +246,715 @@ function isSelected($value, $range)
             </div>
         </div>
 
-        <hr>
-
-        <div class="row my-4">
-            <div class="col-6">
-                <div
-                    class="card bg-transparent d-flex align-items-center justify-content-center  h-100 border-0 p-5 text-center">
-                    <h6 class="text-uppercase">Total Visitors</h6>
-                    <h1 style="font-size: 60px;" class="fw-bold m-0"><?= $stats['total'] ?></h1>
+        <!-- Key Metrics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-users visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= $stats['total'] ?></div>
+                                <div class="visitor-label">Total Visitors</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= $stats['total'] ?></li>
+                                <li><strong>Last 7d:</strong> <?= array_sum(array_column($trendData, 'visits')) ?></li>
+                                <li><strong>Avg Daily:</strong> <?= round($stats['total'] / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div class="col-6">
-                <h6 class="text-uppercase">Visitors Trend</h6>
-                <canvas id="trendChart"></canvas>
-                <script>
-                    const trendCtx = document.getElementById('trendChart').getContext('2d');
-                    new Chart(trendCtx, {
-                        type: 'line',
-                        data: {
-                            labels: <?= json_encode(array_column($trendData, 'date')) ?>,
-                            datasets: [{
-                                label: 'Visits',
-                                data: <?= json_encode(array_map('intval', array_column($trendData, 'visits'))) ?>,
-                                fill: true,
-                                borderColor: '#007bff',
-                                backgroundColor: 'rgba(0, 123, 255, 0.2)',
-                                tension: 0.4
-                            }]
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-user visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= $stats['by_visitor_type'][0]['count'] ?? 0 ?></div>
+                                <div class="visitor-label">Human Visitors</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= $stats['by_visitor_type'][0]['count'] ?? 0 ?></li>
+                                <li><strong>Last 7d:</strong>
+                                    <?= array_sum(array_column($trendData, 'human_visitors')) ?></li>
+                                <li><strong>Avg Daily:</strong>
+                                    <?= round(($stats['by_visitor_type'][0]['count'] ?? 0) / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-robot visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= $stats['by_visitor_type'][1]['count'] ?? 0 ?></div>
+                                <div class="visitor-label">Bot Visitors</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= $stats['by_visitor_type'][1]['count'] ?? 0 ?></li>
+                                <li><strong>Last 7d:</strong> <?= array_sum(array_column($trendData, 'bot_visitors')) ?>
+                                </li>
+                                <li><strong>Avg Daily:</strong>
+                                    <?= round(($stats['by_visitor_type'][1]['count'] ?? 0) / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-globe visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= count($stats['by_country']) ?></div>
+                                <div class="visitor-label">Countries</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= count($stats['by_country']) ?></li>
+                                <li><strong>Last 7d:</strong>
+                                    <?= count(array_unique(array_column($trendData, 'country'))) ?></li>
+                                <li><strong>Avg Daily:</strong> <?= round(count($stats['by_country']) / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Metrics -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-building visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= count($stats['by_org']) ?></div>
+                                <div class="visitor-label">Organizations</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= count($stats['by_org']) ?></li>
+                                <li><strong>Last 7d:</strong>
+                                    <?= count(array_unique(array_column($trendData, 'org'))) ?></li>
+                                <li><strong>Avg Daily:</strong> <?= round(count($stats['by_org']) / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-map-marker-alt visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= count($stats['by_city']) ?></div>
+                                <div class="visitor-label">Cities</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= count($stats['by_city']) ?></li>
+                                <li><strong>Last 7d:</strong>
+                                    <?= count(array_unique(array_column($trendData, 'city'))) ?></li>
+                                <li><strong>Avg Daily:</strong> <?= round(count($stats['by_city']) / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-language visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= count($stats['by_language']) ?></div>
+                                <div class="visitor-label">Languages</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= count($stats['by_language']) ?></li>
+                                <li><strong>Last 7d:</strong>
+                                    <?= count(array_unique(array_column($trendData, 'language'))) ?></li>
+                                <li><strong>Avg Daily:</strong> <?= round(count($stats['by_language']) / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100 metric-card cursor-pointer">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-clock visitor-icon"></i>
+                            <div>
+                                <div class="visitor-count"><?= count($stats['by_timezone']) ?></div>
+                                <div class="visitor-label">Timezones</div>
+                            </div>
+                        </div>
+                        <div class="metric-details">
+                            <ul>
+                                <li><strong>Last 24h:</strong> <?= count($stats['by_timezone']) ?></li>
+                                <li><strong>Last 7d:</strong>
+                                    <?= count(array_unique(array_column($trendData, 'timezone'))) ?></li>
+                                <li><strong>Avg Daily:</strong> <?= round(count($stats['by_timezone']) / 7, 1) ?></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visitor Trends Chart -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Visitor Trends</h5>
+                        <div class="chart-container">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Distribution Charts -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Device Distribution</h5>
+                        <div class="chart-container">
+                            <canvas id="deviceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Browser Usage</h5>
+                        <div class="chart-container">
+                            <canvas id="browserChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Top Countries</h5>
+                        <div class="chart-container">
+                            <canvas id="countryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Distribution Charts -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Operating Systems</h5>
+                        <div class="chart-container">
+                            <canvas id="osChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Top Cities</h5>
+                        <div class="chart-container">
+                            <canvas id="cityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Visitors Table -->
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Recent Visitors</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>IP</th>
+                                <th>User</th>
+                                <th>Org</th>
+                                <th>Device</th>
+                                <th>Browser</th>
+                                <th>Country</th>
+                                <th>City</th>
+                                <th>OS</th>
+                                <th>Visitor</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            // Always show the table, even if empty, for debugging
+                            if (empty($stats['recent'])): ?>
+                                <tr>
+                                    <td colspan="11" class="text-center">
+                                        <div class="alert mb-0">
+                                            <i class="fas fa-info-circle"></i> No recent visitors found
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php else:
+                                $count = 1;
+                                foreach ($stats['recent'] as $row): ?>
+                                    <tr>
+                                        <td><?= $count ?></td>
+                                        <td><?= displayValue($row['user_ip_address'] ?? '') ?></td>
+                                        <td><?= displayValue($row['user_profile'] ?? '') ?></td>
+                                        <td><?= displayValue($row['user_org'] ?? '') ?></td>
+                                        <td><?= displayValue($row['user_device_type'] ?? '') ?></td>
+                                        <td><?= displayValue($row['browser_name'] ?? '') ?></td>
+                                        <td><?= displayValue($row['user_country'] ?? '') ?></td>
+                                        <td><?= displayValue($row['user_city'] ?? '') ?></td>
+                                        <td><?= displayValue($row['user_os'] ?? '') ?></td>
+                                        <td>
+                                            <?php
+                                            switch ($row['visitor_type'] ?? '') {
+                                                case "HUMAN":
+                                                    echo '<span class="badge bg-success"><i class="fas fa-user"></i> Human</span>';
+                                                    break;
+                                                case "BOT":
+                                                    echo '<span class="badge bg-warning"><i class="fas fa-robot"></i> Bot</span>';
+                                                    break;
+                                                default:
+                                                    echo '<span class="badge bg-secondary"><i class="fas fa-question"></i> Unknown</span>';
+                                                    break;
+                                            }
+                                            ?>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            if (!empty($row['created_at'])):
+                                                try {
+                                                    $dt = new DateTime($row['created_at'], new DateTimeZone('UTC'));
+                                                    $dt->setTimezone(new DateTimeZone('Asia/Kolkata'));
+                                                    $date = $dt->format('jS M Y');
+                                                    $time = $dt->format('g:i A');
+                                                    ?>
+                                                    <small><?= $date ?><br><?= $time ?> IST</small>
+                                                <?php } catch (Exception $e) { ?>
+                                                    N/A
+                                                <?php }
+                                            else: ?>
+                                                N/A
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                    <?php $count++; ?>
+                                <?php endforeach;
+                            endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Define chart colors
+        const chartColors = {
+            black: '#000000',
+            darkGrey: '#2C3E50',
+            mediumGrey: '#7F8C8D',
+            lightGrey: '#BDC3C7',
+            veryLightGrey: '#ECF0F1',
+            fillColor: 'rgba(0, 0, 0, 0.1)'
+        };
+
+        // Visitor Trends Chart
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: <?= json_encode(array_column($trendData, 'date')) ?>,
+                datasets: [{
+                    label: 'Visits',
+                    data: <?= json_encode(array_map('intval', array_column($trendData, 'visits'))) ?>,
+                    fill: true,
+                    borderColor: chartColors.black,
+                    backgroundColor: chartColors.fillColor,
+                    tension: 0.4,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: chartColors.veryLightGrey
                         },
-                        options: {
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    title: {
-                                        display: true,
-                                        text: 'Number of Visitors'
-                                    }
-                                },
-                                x: {
-                                    title: {
-                                        display: true,
-                                        text: 'Date'
-                                    }
-                                }
-                            }
+                        title: {
+                            display: true,
+                            text: 'Number of Visitors'
                         }
-                    });
-                </script>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-4">
-                <canvas id="browserChart"></canvas>
-            </div>
-            <div class="col-4">
-                <canvas id="deviceChart"></canvas>
-            </div>
-            <div class="col-4">
-                <canvas id="countryChart"></canvas>
-            </div>
-        </div>
-
-        <script>
-            const deviceCtx = document.getElementById('deviceChart').getContext('2d');
-            new Chart(deviceCtx, {
-                type: 'pie',
-                data: {
-                    labels: <?= json_encode(array_column($stats['by_device'], 'user_device_type')) ?>,
-                    datasets: [{
-                        data: <?= json_encode(array_column($stats['by_device'], 'count')) ?>,
-                        backgroundColor: ['#ff6384', '#ff9f40', '#4bc0c0', '#9966ff', '#36a2eb']
-                    }]
-                }
-            });
-
-            const browserCtx = document.getElementById('browserChart').getContext('2d');
-            new Chart(browserCtx, {
-                type: 'bar',
-                data: {
-                    labels: <?= json_encode(array_column($stats['by_browser'], 'browser_name')) ?>,
-                    datasets: [{
-                        label: 'Browsers',
-                        data: <?= json_encode(array_column($stats['by_browser'], 'count')) ?>,
-                        backgroundColor: ['#ff6384', '#ff9f40', '#4bc0c0', '#9966ff', '#36a2eb']
-                    }]
-                }
-            });
-
-            const countryCtx = document.getElementById('countryChart').getContext('2d');
-            new Chart(countryCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: <?= json_encode(array_column($stats['by_country'], 'user_country')) ?>,
-                    datasets: [{
-                        data: <?= json_encode(array_column($stats['by_country'], 'count')) ?>,
-                        backgroundColor: ['#ff6384', '#ff9f40', '#4bc0c0', '#9966ff', '#36a2eb']
-                    }]
-                }
-            });
-        </script>
-    </div>
-
-    <div class="container-fluid">
-        <h6 class="text-uppercase">Recent Visitors</h6>
-        <div class="table-responsive" style="overflow-x:auto;">
-            <table class="table table-striped table-bordered table-hover align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>IP</th>
-                        <th>User</th>
-                        <th>Org</th>
-                        <th>User Agent</th>
-                        <th>Device</th>
-                        <th>Browser</th>
-                        <th>Country</th>
-                        <th>City</th>
-                        <th>Region</th>
-                        <th>OS</th>
-                        <th>Lang</th>
-                        <th>Referrer</th>
-                        <th>URL</th>
-                        <th>Timezone</th>
-                        <th>Visitor</th>
-                        <th>Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-                    function displayValue($value)
-                    {
-                        return ($value === "Unknown" || $value === null) ? "N/A" : htmlspecialchars($value);
-                    }
-                    // Counts
-                    $count = 1;
-                    $humanCount = 0;
-                    $botCount = 0;
-                    foreach ($stats['recent'] as $row) {
-                        if ($row['visitor_type'] == "HUMAN") {
-                            $humanCount++;
-                        } else {
-                            $botCount++;
+                    },
+                    x: {
+                        grid: {
+                            color: chartColors.veryLightGrey
+                        },
+                        title: {
+                            display: true,
+                            text: 'Date'
                         }
                     }
-                    foreach ($stats['recent'] as $row): ?>
-                        <tr>
-                            <td><?= $count ?></td>
-                            <td><?= displayValue($row['user_ip_address']) ?></td>
-                            <td><?= displayValue($row['user_profile']) ?></td>
-                            <td><?= displayValue($row['user_org']) ?></td>
-                            <td><?= displayValue($row['user_browser_agent']) ?></td>
-                            <td><?= displayValue($row['user_device_type']) ?></td>
-                            <td><?= displayValue($row['browser_name']) ?></td>
-                            <td><?= displayValue($row['user_country']) ?></td>
-                            <td><?= displayValue($row['user_city']) ?></td>
-                            <td><?= displayValue($row['user_region']) ?></td>
-                            <td><?= displayValue($row['user_os']) ?></td>
-                            <td><?= displayValue($row['browser_language']) ?></td>
-                            <td><?= displayValue($row['referring_url']) ?></td>
-                            <td><?= displayValue($row['page_url']) ?></td>
-                            <td><?= displayValue($row['timezone']) ?></td>
-                            <td>
-                                <?php
-                                if ($row['visitor_type'] == "HUMAN") {
-                                    echo '<h6 class="m-0 text-center"><i class="fa-solid fa-person"></i></h6>';
-                                } else {
-                                    echo '<h6 class="m-0 text-center"><i class="fa-solid fa-robot"></i></h6>';
-                                }
-                                ?>
-                            </td>
-                            <td>
-                                <?php
-                                if ($row['created_at']):
-                                    // Convert to Indian time (Asia/Kolkata)
-                                    $dt = new DateTime($row['created_at'], new DateTimeZone('UTC'));
-                                    $dt->setTimezone(new DateTimeZone('Asia/Kolkata'));
-                                    $date = $dt->format('jS M Y');
-                                    $time = $dt->format('g:i A');
-                                    ?>
-                                    <?= $date ?><br><span class="text-muted"><?= $time ?> IST</span>
-                                <?php else: ?>
-                                    N/A
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php $count++; ?>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <p class="text-muted">Total: <?= $stats['total'] ?> | Humans: <?= $humanCount ?> | Bots: <?= $botCount ?>
-            </p>
-        </div>
-    </div>
+                }
+            }
+        });
 
+        // Device Distribution Chart
+        const deviceCtx = document.getElementById('deviceChart').getContext('2d');
+        new Chart(deviceCtx, {
+            type: 'doughnut',
+            data: {
+                labels: <?= json_encode(array_column($stats['by_device'], 'user_device_type')) ?>,
+                datasets: [{
+                    data: <?= json_encode(array_column($stats['by_device'], 'count')) ?>,
+                    backgroundColor: [
+                        chartColors.black,
+                        chartColors.darkGrey,
+                        chartColors.mediumGrey,
+                        chartColors.lightGrey,
+                        chartColors.veryLightGrey
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true
+                        }
+                    }
+                }
+            }
+        });
+
+        // Browser Usage Chart
+        const browserCtx = document.getElementById('browserChart').getContext('2d');
+        new Chart(browserCtx, {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode(array_column($stats['by_browser'], 'browser_name')) ?>,
+                datasets: [{
+                    label: 'Browsers',
+                    data: <?= json_encode(array_column($stats['by_browser'], 'count')) ?>,
+                    backgroundColor: [
+                        chartColors.black,
+                        chartColors.darkGrey,
+                        chartColors.mediumGrey,
+                        chartColors.lightGrey,
+                        chartColors.veryLightGrey
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: chartColors.veryLightGrey
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // Country Distribution Chart
+        const countryCtx = document.getElementById('countryChart').getContext('2d');
+        new Chart(countryCtx, {
+            type: 'pie',
+            data: {
+                labels: <?= json_encode(array_column($stats['by_country'], 'user_country')) ?>,
+                datasets: [{
+                    data: <?= json_encode(array_column($stats['by_country'], 'count')) ?>,
+                    backgroundColor: [
+                        chartColors.black,
+                        chartColors.darkGrey,
+                        chartColors.mediumGrey,
+                        chartColors.lightGrey,
+                        chartColors.veryLightGrey
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true
+                        }
+                    }
+                }
+            }
+        });
+
+        // OS Distribution Chart
+        const osCtx = document.getElementById('osChart').getContext('2d');
+        const osData = <?= json_encode(array_column($stats['by_os'], 'count', 'user_os')) ?>;
+        new Chart(osCtx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(osData),
+                datasets: [{
+                    label: 'Operating Systems',
+                    data: Object.values(osData),
+                    backgroundColor: [
+                        chartColors.black,
+                        chartColors.darkGrey,
+                        chartColors.mediumGrey,
+                        chartColors.lightGrey,
+                        chartColors.veryLightGrey
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: chartColors.veryLightGrey
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // City Distribution Chart
+        const cityCtx = document.getElementById('cityChart').getContext('2d');
+        const cityData = <?= json_encode(array_column($stats['by_city'], 'count', 'user_city')) ?>;
+        new Chart(cityCtx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(cityData),
+                datasets: [{
+                    label: 'Top Cities',
+                    data: Object.values(cityData),
+                    backgroundColor: [
+                        chartColors.black,
+                        chartColors.darkGrey,
+                        chartColors.mediumGrey,
+                        chartColors.lightGrey,
+                        chartColors.veryLightGrey
+                    ],
+                    borderWidth: 1,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: chartColors.veryLightGrey
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // Add refresh functionality
+        function refreshData() {
+            const overlay = document.querySelector('.loading-overlay');
+            overlay.style.display = 'flex';
+
+            // Add timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            window.location.href = `?range=${currentRange}&_=${timestamp}`;
+        }
+
+        // Store current range
+        const currentRange = '<?= $range ?>';
+
+        // Add click handlers for metric cards
+        document.querySelectorAll('.metric-card').forEach(card => {
+            card.addEventListener('click', function () {
+                // Add your custom click handling here
+                // For example, you could show a modal with more detailed information
+            });
+        });
+
+        // Add auto-refresh every 5 minutes
+        setInterval(refreshData, 300000);
+
+        // Add error handling for charts
+        function handleChartError(chart, error) {
+            console.error('Chart error:', error);
+            const canvas = chart.canvas;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Error loading chart data', canvas.width / 2, canvas.height / 2);
+        }
+
+        // Add error handling to all charts
+        Chart.defaults.plugins.tooltip.enabled = true;
+        Chart.defaults.plugins.tooltip.mode = 'index';
+        Chart.defaults.plugins.tooltip.intersect = false;
+        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(0,0,0,0.8)';
+        Chart.defaults.plugins.tooltip.titleColor = '#ffffff';
+        Chart.defaults.plugins.tooltip.bodyColor = '#ffffff';
+        Chart.defaults.plugins.tooltip.borderColor = '#ffffff';
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+        Chart.defaults.plugins.tooltip.padding = 10;
+        Chart.defaults.plugins.tooltip.cornerRadius = 4;
+        Chart.defaults.plugins.tooltip.displayColors = true;
+        Chart.defaults.plugins.tooltip.boxWidth = 10;
+        Chart.defaults.plugins.tooltip.boxHeight = 10;
+        Chart.defaults.plugins.tooltip.usePointStyle = true;
+        Chart.defaults.plugins.tooltip.callbacks = {
+            label: function (context) {
+                let label = context.dataset.label || '';
+                if (label) {
+                    label += ': ';
+                }
+                if (context.parsed.y !== null) {
+                    label += new Intl.NumberFormat().format(context.parsed.y);
+                }
+                return label;
+            }
+        };
+
+        // Add responsive breakpoints
+        const breakpoints = {
+            xs: 0,
+            sm: 576,
+            md: 768,
+            lg: 992,
+            xl: 1200
+        };
+
+        // Update chart options based on screen size
+        function updateChartOptions() {
+            const width = window.innerWidth;
+            const isMobile = width < breakpoints.md;
+
+            Chart.helpers.each(Chart.instances, function (instance) {
+                const chart = instance.chart;
+                const options = chart.options;
+
+                // Adjust legend position for mobile
+                if (options.plugins && options.plugins.legend) {
+                    options.plugins.legend.position = isMobile ? 'bottom' : 'right';
+                }
+
+                // Adjust font sizes for mobile
+                if (options.scales) {
+                    if (options.scales.x && options.scales.x.ticks) {
+                        options.scales.x.ticks.font = {
+                            size: isMobile ? 10 : 12
+                        };
+                    }
+                    if (options.scales.y && options.scales.y.ticks) {
+                        options.scales.y.ticks.font = {
+                            size: isMobile ? 10 : 12
+                        };
+                    }
+                }
+
+                chart.update();
+            });
+        }
+
+        // Listen for window resize
+        window.addEventListener('resize', updateChartOptions);
+        // Initial call
+        updateChartOptions();
+    </script>
 </body>
 
 </html>
