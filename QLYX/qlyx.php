@@ -74,7 +74,7 @@ class QLYX
 		$user_profile = substr(hash('sha256', $ip . $userAgent . $deviceType . $os . $browser['name'] . $browser['version']), 0, 50);
 		// Set this profile to a cookie or session if needed
 		if (!isset($_COOKIE['qlyx_user_profile'])) {
-			setcookie('qlyx_user_profile', $user_profile, time() + (86400 * 30), "/"); // 30 days
+			setcookie('qlyx_user_profile', $user_profile, time() + 86400 * 30, "/"); // 30 days
 		}
 		return $user_profile;
 	}
