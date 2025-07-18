@@ -530,7 +530,7 @@ foreach ($stats['recent'] as $row) {
                                 </tr>
                             <?php else:
                                 $count = 1;
-                                foreach ($stats['recent'] as $row): 
+                                foreach ($stats['recent'] as $row):
                                     // Prepare all fields for modal (use raw values, not displayValue)
                                     $modalId = "visitorModal" . $count;
 
@@ -558,7 +558,7 @@ foreach ($stats['recent'] as $row) {
                                         "Created At" => $row['created_at'] ?? '',
                                         "Last Activity" => $row['last_activity'] ?? '',
                                     ];
-                                ?>
+                                    ?>
                                     <tr>
                                         <td><?= $count ?></td>
                                         <td><?= displayValue($row['user_ip_address'] ?? '') ?></td>
@@ -604,41 +604,41 @@ foreach ($stats['recent'] as $row) {
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <button 
-                                                type="button" 
-                                                class="btn btn-sm btn-outline-dark" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#<?= $modalId ?>"
-                                                title="Show more details"
-                                            >
+                                            <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal"
+                                                data-bs-target="#<?= $modalId ?>" title="Show more details">
                                                 <i class="fas fa-info-circle"></i>
                                             </button>
                                             <!-- Modal for more details (now displays ALL fields) -->
-                                            <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true">
-                                              <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-                                                <div class="modal-content">
-                                                  <div class="modal-header">
-                                                    <h5 class="modal-title" id="<?= $modalId ?>Label">Visitor Details</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                  </div>
-                                                  <div class="modal-body">
-                                                    <div class="table-responsive">
-                                                      <table class="table table-bordered table-sm mb-0">
-                                                        <tbody>
-                                                          <?php
-                                                          foreach ($modalData as $key => $value) {
-                                                              echo "<tr><th>$key</th><td>" . htmlspecialchars((string)$value) . "</td></tr>";
-                                                          }
-                                                          ?>
-                                                        </tbody>
-                                                      </table>
+                                            <div class="modal fade" id="<?= $modalId ?>" tabindex="-1"
+                                                aria-labelledby="<?= $modalId ?>Label" aria-hidden="true">
+                                                <div
+                                                    class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title" id="<?= $modalId ?>Label">Visitor Details
+                                                            </h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                                                aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <div class="table-responsive">
+                                                                <table class="table table-bordered table-sm mb-0">
+                                                                    <tbody>
+                                                                        <?php
+                                                                        foreach ($modalData as $key => $value) {
+                                                                            echo "<tr><th>$key</th><td>" . htmlspecialchars((string) $value) . "</td></tr>";
+                                                                        }
+                                                                        ?>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-sm btn-dark"
+                                                                data-bs-dismiss="modal">Close</button>
+                                                        </div>
                                                     </div>
-                                                  </div>
-                                                  <div class="modal-footer">
-                                                    <button type="button" class="btn btn-sm btn-dark" data-bs-dismiss="modal">Close</button>
-                                                  </div>
                                                 </div>
-                                              </div>
                                             </div>
                                         </td>
                                     </tr>
