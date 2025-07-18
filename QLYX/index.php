@@ -514,6 +514,7 @@ foreach ($stats['recent'] as $row) {
                                 <th>OS</th>
                                 <th>Visitor</th>
                                 <th>Time</th>
+                                <th>More</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -521,7 +522,7 @@ foreach ($stats['recent'] as $row) {
                             // Always show the table, even if empty, for debugging
                             if (empty($stats['recent'])): ?>
                                 <tr>
-                                    <td colspan="11" class="text-center">
+                                    <td colspan="12" class="text-center">
                                         <div class="alert mb-0">
                                             <i class="fas fa-info-circle"></i> No recent visitors found
                                         </div>
@@ -529,7 +530,42 @@ foreach ($stats['recent'] as $row) {
                                 </tr>
                             <?php else:
                                 $count = 1;
-                                foreach ($stats['recent'] as $row): ?>
+                                foreach ($stats['recent'] as $row): 
+                                    // Prepare all fields for modal
+                                    $modalId = "visitorModal" . $count;
+                                    $modalData = [
+                                        "ID" => $row['id'] ?? 'N/A',
+                                        "IP Address" => displayValue($row['user_ip_address'] ?? ''),
+                                        "User Profile" => displayValue($row['user_profile'] ?? ''),
+                                        "Organization" => displayValue($row['user_org'] ?? ''),
+                                        "Device Type" => displayValue($row['user_device_type'] ?? ''),
+                                        "Operating System" => displayValue($row['user_os'] ?? ''),
+                                        "City" => displayValue($row['user_city'] ?? ''),
+                                        "Region" => displayValue($row['user_region'] ?? ''),
+                                        "Country" => displayValue($row['user_country'] ?? ''),
+                                        "Browser Name" => displayValue($row['browser_name'] ?? ''),
+                                        "Browser Version" => displayValue($row['browser_version'] ?? ''),
+                                        "Browser Language" => displayValue($row['browser_language'] ?? ''),
+                                        "User Agent" => displayValue($row['user_browser_agent'] ?? ''),
+                                        "Referring URL" => displayValue($row['referring_url'] ?? ''),
+                                        "Page URL" => displayValue($row['page_url'] ?? ''),
+                                        "Timezone" => displayValue($row['timezone'] ?? ''),
+                                        "Visitor Type" => displayValue($row['visitor_type'] ?? ''),
+                                        "Session ID" => displayValue($row['session_id'] ?? ''),
+                                        "Page Count" => displayValue($row['page_count'] ?? ''),
+                                        "Created At" => displayValue($row['created_at'] ?? ''),
+                                        "Last Activity" => displayValue($row['last_activity'] ?? ''),
+                                    ];
+                                    // Fields shown in main table
+                                    $mainFields = [
+                                        'user_ip_address', 'user_profile', 'user_org', 'user_device_type', 'browser_name', 'user_country', 'user_city', 'user_os'
+                                    ];
+                                    // Find missing fields for modal (not shown in main table)
+                                    $shownKeys = [
+                                        "IP Address", "User Profile", "Organization", "Device Type", "Browser Name", "Country", "City", "Operating System"
+                                    ];
+                                    $missingFields = array_diff(array_keys($modalData), $shownKeys);
+                                ?>
                                     <tr>
                                         <td><?= $count ?></td>
                                         <td><?= displayValue($row['user_ip_address'] ?? '') ?></td>
@@ -572,12 +608,56 @@ foreach ($stats['recent'] as $row) {
                                                 N/A
                                             <?php endif; ?>
                                         </td>
+                                        <td>
+                                            <button 
+                                                type="button" 
+                                                class="btn btn-sm btn-outline-dark" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#<?= $modalId ?>"
+                                                title="Show more details"
+                                            >
+                                                <i class="fas fa-info-circle"></i>
+                                            </button>
+                                            <!-- Modal for more details (moved inside the table cell for correct layout) -->
+                                            <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true">
+                                              <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+                                                <div class="modal-content">
+                                                  <div class="modal-header">
+                                                    <h5 class="modal-title" id="<?= $modalId ?>Label">Visitor Details</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                  </div>
+                                                  <div class="modal-body">
+                                                    <div class="table-responsive">
+                                                      <table class="table table-bordered table-sm mb-0">
+                                                        <tbody>
+                                                          <?php
+                                                          foreach ($modalData as $key => $value) {
+                                                              // Only show fields not in main table
+                                                              if (in_array($key, $shownKeys)) continue;
+                                                              // For long text, wrap in <code> for user agent, url, etc.
+                                                              $isLong = (strlen($value) > 40 || $key === "User Agent" || $key === "Referring URL" || $key === "Page URL");
+                                                              echo "<tr><th style='width:30%;white-space:nowrap;'>".htmlspecialchars($key)."</th><td>".($isLong ? "<code style='word-break:break-all;white-space:pre-wrap;'>$value</code>" : $value)."</td></tr>";
+                                                          }
+                                                          ?>
+                                                        </tbody>
+                                                      </table>
+                                                    </div>
+                                                  </div>
+                                                  <div class="modal-footer">
+                                                    <button type="button" class="btn btn-sm btn-dark" data-bs-dismiss="modal">Close</button>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                        </td>
                                     </tr>
                                     <?php $count++; ?>
                                 <?php endforeach;
                             endif; ?>
                         </tbody>
                     </table>
+                    <!-- Ensure Bootstrap JS is loaded for modal functionality -->
+                    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
                 </div>
             </div>
         </div>
