@@ -531,40 +531,33 @@ foreach ($stats['recent'] as $row) {
                             <?php else:
                                 $count = 1;
                                 foreach ($stats['recent'] as $row): 
-                                    // Prepare all fields for modal
+                                    // Prepare all fields for modal (use raw values, not displayValue)
                                     $modalId = "visitorModal" . $count;
+
+                                    // Just get the values from the database, use null coalescing to avoid undefined index warnings
                                     $modalData = [
-                                        "ID" => $row['id'] ?? 'N/A',
-                                        "IP Address" => displayValue($row['user_ip_address'] ?? ''),
-                                        "User Profile" => displayValue($row['user_profile'] ?? ''),
-                                        "Organization" => displayValue($row['user_org'] ?? ''),
-                                        "Device Type" => displayValue($row['user_device_type'] ?? ''),
-                                        "Operating System" => displayValue($row['user_os'] ?? ''),
-                                        "City" => displayValue($row['user_city'] ?? ''),
-                                        "Region" => displayValue($row['user_region'] ?? ''),
-                                        "Country" => displayValue($row['user_country'] ?? ''),
-                                        "Browser Name" => displayValue($row['browser_name'] ?? ''),
-                                        "Browser Version" => displayValue($row['browser_version'] ?? ''),
-                                        "Browser Language" => displayValue($row['browser_language'] ?? ''),
-                                        "User Agent" => displayValue($row['user_browser_agent'] ?? ''),
-                                        "Referring URL" => displayValue($row['referring_url'] ?? ''),
-                                        "Page URL" => displayValue($row['page_url'] ?? ''),
-                                        "Timezone" => displayValue($row['timezone'] ?? ''),
-                                        "Visitor Type" => displayValue($row['visitor_type'] ?? ''),
-                                        "Session ID" => displayValue($row['session_id'] ?? ''),
-                                        "Page Count" => displayValue($row['page_count'] ?? ''),
-                                        "Created At" => displayValue($row['created_at'] ?? ''),
-                                        "Last Activity" => displayValue($row['last_activity'] ?? ''),
+                                        "ID" => $row['id'] ?? '',
+                                        "IP Address" => $row['user_ip_address'] ?? '',
+                                        "User Profile" => $row['user_profile'] ?? '',
+                                        "Organization" => $row['user_org'] ?? '',
+                                        "User Browser Agent" => $row['user_browser_agent'] ?? '',
+                                        "Device Type" => $row['user_device_type'] ?? '',
+                                        "Operating System" => $row['user_os'] ?? '',
+                                        "City" => $row['user_city'] ?? '',
+                                        "Region" => $row['user_region'] ?? '',
+                                        "Country" => $row['user_country'] ?? '',
+                                        "Browser Name" => $row['browser_name'] ?? '',
+                                        "Browser Version" => $row['browser_version'] ?? '',
+                                        "Browser Language" => $row['browser_language'] ?? '',
+                                        "Referring URL" => $row['referring_url'] ?? '',
+                                        "Page URL" => $row['page_url'] ?? '',
+                                        "Timezone" => $row['timezone'] ?? '',
+                                        "Visitor Type" => $row['visitor_type'] ?? '',
+                                        "Session ID" => $row['session_id'] ?? '',
+                                        "Page Count" => $row['page_count'] ?? '',
+                                        "Created At" => $row['created_at'] ?? '',
+                                        "Last Activity" => $row['last_activity'] ?? '',
                                     ];
-                                    // Fields shown in main table
-                                    $mainFields = [
-                                        'user_ip_address', 'user_profile', 'user_org', 'user_device_type', 'browser_name', 'user_country', 'user_city', 'user_os'
-                                    ];
-                                    // Find missing fields for modal (not shown in main table)
-                                    $shownKeys = [
-                                        "IP Address", "User Profile", "Organization", "Device Type", "Browser Name", "Country", "City", "Operating System"
-                                    ];
-                                    $missingFields = array_diff(array_keys($modalData), $shownKeys);
                                 ?>
                                     <tr>
                                         <td><?= $count ?></td>
@@ -578,7 +571,8 @@ foreach ($stats['recent'] as $row) {
                                         <td><?= displayValue($row['user_os'] ?? '') ?></td>
                                         <td>
                                             <?php
-                                            switch ($row['visitor_type'] ?? '') {
+                                            $visitorType = $row['visitor_type'] ?? '';
+                                            switch ($visitorType) {
                                                 case "HUMAN":
                                                     echo '<span class="badge bg-success"><i class="fas fa-user"></i> Human</span>';
                                                     break;
@@ -593,9 +587,10 @@ foreach ($stats['recent'] as $row) {
                                         </td>
                                         <td>
                                             <?php
-                                            if (!empty($row['created_at'])):
+                                            $createdAt = $row['created_at'] ?? '';
+                                            if (!empty($createdAt)):
                                                 try {
-                                                    $dt = new DateTime($row['created_at'], new DateTimeZone('UTC'));
+                                                    $dt = new DateTime($createdAt, new DateTimeZone('UTC'));
                                                     $dt->setTimezone(new DateTimeZone('Asia/Kolkata'));
                                                     $date = $dt->format('jS M Y');
                                                     $time = $dt->format('g:i A');
@@ -618,7 +613,7 @@ foreach ($stats['recent'] as $row) {
                                             >
                                                 <i class="fas fa-info-circle"></i>
                                             </button>
-                                            <!-- Modal for more details (moved inside the table cell for correct layout) -->
+                                            <!-- Modal for more details (now displays ALL fields) -->
                                             <div class="modal fade" id="<?= $modalId ?>" tabindex="-1" aria-labelledby="<?= $modalId ?>Label" aria-hidden="true">
                                               <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
                                                 <div class="modal-content">
@@ -631,12 +626,12 @@ foreach ($stats['recent'] as $row) {
                                                       <table class="table table-bordered table-sm mb-0">
                                                         <tbody>
                                                           <?php
+                                                          // Debug: Show the raw $row array for troubleshooting
+                                                          echo '<tr><td colspan="2"><pre style="font-size:11px;background:#f8f9fa;">';
+                                                        //   print_r($row);
+                                                          echo '</pre></td></tr>';
                                                           foreach ($modalData as $key => $value) {
-                                                              // Only show fields not in main table
-                                                              if (in_array($key, $shownKeys)) continue;
-                                                              // For long text, wrap in <code> for user agent, url, etc.
-                                                              $isLong = (strlen($value) > 40 || $key === "User Agent" || $key === "Referring URL" || $key === "Page URL");
-                                                              echo "<tr><th style='width:30%;white-space:nowrap;'>".htmlspecialchars($key)."</th><td>".($isLong ? "<code style='word-break:break-all;white-space:pre-wrap;'>$value</code>" : $value)."</td></tr>";
+                                                              echo "<tr><th>$key</th><td>" . htmlspecialchars((string)$value) . "</td></tr>";
                                                           }
                                                           ?>
                                                         </tbody>

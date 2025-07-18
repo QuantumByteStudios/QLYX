@@ -601,7 +601,7 @@ class QLYX
 			$stmt = $this->pdo->prepare("
 				SELECT user_os, COUNT(*) as count 
 				FROM qlyx_analytics 
-				WHERE $where
+				WHERE $where AND user_os IS NOT NULL
 				GROUP BY user_os
 				ORDER BY count DESC
 			");
@@ -612,7 +612,7 @@ class QLYX
 			$stmt = $this->pdo->prepare("
 				SELECT browser_language, COUNT(*) as count 
 				FROM qlyx_analytics 
-				WHERE $where
+				WHERE $where AND browser_language IS NOT NULL
 				GROUP BY browser_language
 				ORDER BY count DESC
 			");
@@ -623,7 +623,7 @@ class QLYX
 			$stmt = $this->pdo->prepare("
 				SELECT timezone, COUNT(*) as count 
 				FROM qlyx_analytics 
-				WHERE $where
+				WHERE $where AND timezone IS NOT NULL
 				GROUP BY timezone
 				ORDER BY count DESC
 			");
@@ -634,30 +634,37 @@ class QLYX
 			$stmt = $this->pdo->prepare("
 				SELECT user_org, COUNT(*) as count 
 				FROM qlyx_analytics 
-				WHERE $where
+				WHERE $where AND user_org IS NOT NULL
 				GROUP BY user_org
 				ORDER BY count DESC
 			");
 			$stmt->execute();
 			$data['by_org'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-			// Get recent visitors with all details
+			// Get recent visitors with all details (return all columns)
 			$stmt = $this->pdo->prepare("
 				SELECT 
+					id,
 					user_ip_address,
 					user_profile,
 					user_org,
+					user_browser_agent,
 					user_device_type,
-					browser_name,
-					user_country,
-					user_city,
 					user_os,
+					user_city,
+					user_region,
+					user_country,
+					browser_name,
+					browser_version,
 					browser_language,
+					referring_url,
+					page_url,
 					timezone,
 					visitor_type,
-					created_at,
+					session_id,
 					page_count,
-					TIMESTAMPDIFF(MINUTE, created_at, last_activity) as session_duration
+					created_at,
+					last_activity
 				FROM qlyx_analytics 
 				WHERE $where
 				ORDER BY created_at DESC
