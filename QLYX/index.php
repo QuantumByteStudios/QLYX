@@ -626,10 +626,6 @@ foreach ($stats['recent'] as $row) {
                                                       <table class="table table-bordered table-sm mb-0">
                                                         <tbody>
                                                           <?php
-                                                          // Debug: Show the raw $row array for troubleshooting
-                                                          echo '<tr><td colspan="2"><pre style="font-size:11px;background:#f8f9fa;">';
-                                                        //   print_r($row);
-                                                          echo '</pre></td></tr>';
                                                           foreach ($modalData as $key => $value) {
                                                               echo "<tr><th>$key</th><td>" . htmlspecialchars((string)$value) . "</td></tr>";
                                                           }
